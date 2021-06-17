@@ -5,15 +5,15 @@
 /// Validation helpers.
 //
 
-#define CHECK_CUDA(x) TORCH_CHECK(x.type().is_cuda())
-#define CHECK_CPU(x) TORCH_CHECK(!x.type().is_cuda())
-#define CHECK_HALF(x) TORCH_CHECK(x.type().scalarType() == torch::ScalarType::Half)
-#define CHECK_INT(x) TORCH_CHECK(x.type().scalarType() == torch:::ScalarType::Int)
-#define CHECK_SHORT(x) TORCH_CHECK(x.type().scalarType() == torch::ScalarType::Short)
-#define CHECK_SCALAR(x) TORCH_CHECK(x.size() == 1)
-#define CHECK_VECTOR(x) TORCH_CHECK(x.ndimensions() == 1)
-#define CHECK_MATRIX(x) TORCH_CHECK(x.ndimensions() == 2)
-#define CHECK_SHAPE(x) TORCH_CHECK(x.size() == 2)
+#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda())
+#define CHECK_CPU(x) TORCH_CHECK(!x.is_cuda())
+#define CHECK_HALF(x) TORCH_CHECK(x.scalar_type() == torch::ScalarType::Half)
+#define CHECK_INT(x) TORCH_CHECK(x.scalar_type() == torch::ScalarType::Int)
+#define CHECK_SHORT(x) TORCH_CHECK(x.scalar_type() == torch::ScalarType::Short)
+#define CHECK_SCALAR(x) TORCH_CHECK(x.numel() == 1)
+#define CHECK_VECTOR(x) TORCH_CHECK(x.ndimension() == 1)
+#define CHECK_MATRIX(x) TORCH_CHECK(x.ndimension() == 2)
+#define CHECK_SHAPE(x) TORCH_CHECK(x.numel() == 2)
 
 void validate_shape(torch::Tensor shape) {
   CHECK_CPU(shape);
@@ -38,17 +38,17 @@ void validate_sparse(torch::Tensor shape,
 		     torch::Tensor data,
 		     torch::Tensor offsets,
 		     torch::Tensor indices,
-		     torch::Tensor transpose_a) {
+		     torch::Tensor transpose) {
   validate_shape(shape);
   validate_block_size(block_size);
   validate_transpose(transpose);
   CHECK_CUDA(data);
   CHECK_VECTOR(data);
   CHECK_HALF(data);
-  CHECK_CUDA(offsets)
+  CHECK_CUDA(offsets);
   CHECK_VECTOR(offsets);
   CHECK_INT(offsets);
-  CHECK_CUDA(indices)
+  CHECK_CUDA(indices);
   CHECK_VECTOR(indices);
   CHECK_SHORT(indices);  
 }
@@ -80,7 +80,7 @@ bool is_transposed(torch::Tensor x) {
   // If it passes validation and we're not contiguous,
   // the matrix is transposed.
   validate_dense(x);
-  return !x.is_contiguous()
+  return !x.is_contiguous();
 }
 
 // TODO(tgale): Overload this to handle transposes.
@@ -107,7 +107,7 @@ void dsd(torch::Tensor shape,
 	 torch::Tensor data,
 	 torch::Tensor offsets,
 	 torch::Tensor indices,
-	 torch::Tensor tranpose_a,
+	 torch::Tensor transpose_a,
 	 torch::Tensor rhs,
 	 torch::Tensor out) {
   auto lhs = as_block_matrix(shape, block_size, data, offsets, indices, transpose_a);
