@@ -5,15 +5,16 @@ from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 # need to already have it installed.
 ext_modules = [
     CUDAExtension(
-        'backend',
-        ['backend.cc'],
+        "backend",
+        ["backend.cc"],
         include_dirs = ["/usr/local/sputnik/include"],
         libraries = ["sputnik"],
-        library_dirs = ["/usr/local/sputnik/lib"])
+        library_dirs = ["/usr/local/sputnik/lib"],
+        extra_compile_ars={"cxx": ["-fopenmp"]})
 ]
 
 setup(
-    name='stk_backend',
+    name="stk_backend",
     ext_modules=ext_modules,
-    cmdclass={'build_ext': BuildExtension}
+    cmdclass={"build_ext": BuildExtension}
 )

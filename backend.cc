@@ -1,4 +1,5 @@
 #include <torch/extension.h>
+#include <c10/cuda/CUDAStream.h>
 #include <sputnik/sputnik.h>
 
 //
@@ -27,6 +28,12 @@ void validate_block_size(torch::Tensor block_size) {
   CHECK_INT(block_size);
 }
 
+void validate_nonzeros(torch::Tensor nonzeros) {
+  CHECK_CPU(nonzeros);
+  CHECK_SCALAR(nonzeros);
+  CHECK_INT(nonzeros);
+}
+
 void validate_transpose(torch::Tensor transpose) {
   CHECK_CPU(transpose);
   CHECK_SCALAR(transpose);
@@ -35,12 +42,14 @@ void validate_transpose(torch::Tensor transpose) {
 
 void validate_sparse(torch::Tensor shape,
 		     torch::Tensor block_size,
+		     torch::Tensor nonzeros,
 		     torch::Tensor data,
 		     torch::Tensor offsets,
 		     torch::Tensor indices,
 		     torch::Tensor transpose) {
   validate_shape(shape);
   validate_block_size(block_size);
+  validate_nonzeros(nonzeros);
   validate_transpose(transpose);
   CHECK_CUDA(data);
   CHECK_VECTOR(data);
@@ -83,37 +92,65 @@ bool is_transposed(torch::Tensor x) {
   return !x.is_contiguous();
 }
 
+int access_metadata(torch::Tensor m, int idx = 0) {
+  auto accessor = m.accessor<int, 1>();
+  return accessor[idx];
+}
+
 // TODO(tgale): Overload this to handle transposes.
 sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
 					    torch::Tensor block_size,
+					    torch::Tensor nonzeros,
 					    torch::Tensor data,
 					    torch::Tensor offsets,
 					    torch::Tensor indices,
 					    torch::Tensor transpose) {
-  validate_sparse(shape, block_size, data, offsets, indices, transpose);
+  validate_sparse(shape,
+		  block_size,
+		  nonzeros,
+		  data,
+		  offsets,
+		  indices,
+		  transpose);
   
   // TODO(tgale): Generalize this.
-  TORCH_CHECK(!transpose[0]);
-
-  return sputnik::block::BlockMatrix(shape[0], shape[1],
-				     sputnik::block::AsBlockSize(block_size[1]),
+  TORCH_CHECK(!access_metadata(transpose));
+  auto blocking = sputnik::block::AsBlockSize(access_metadata(block_size));
+  return sputnik::block::BlockMatrix(access_metadata(shape, 0),
+				     access_metadata(shape, 1),
+				     blocking,
+				     access_metadata(nonzeros),
 				     data.data_ptr(),
 				     offsets.data_ptr(),
 				     indices.data_ptr());
 }
 
+//
+/// Custom operations.
+//
+
 void dsd(torch::Tensor shape,
 	 torch::Tensor block_size,
+	 torch::Tensor nonzeros,
 	 torch::Tensor data,
 	 torch::Tensor offsets,
 	 torch::Tensor indices,
 	 torch::Tensor transpose_a,
 	 torch::Tensor rhs,
 	 torch::Tensor out) {
-  auto lhs = as_block_matrix(shape, block_size, data, offsets, indices, transpose_a);
-  sputnik::block::Matmul(lhs, transpose_a[0],
-			 as_matrix(rhs), is_transposed(rhs),
-			 as_matrix(out));
+  auto lhs = as_block_matrix(shape,
+			     block_size,
+			     nonzeros,
+			     data,
+			     offsets,
+			     indices,
+			     transpose_a);
+  sputnik::block::Matmul(lhs,
+			 (bool)access_metadata(transpose_a),
+			 as_matrix(rhs),
+			 is_transposed(rhs),
+			 as_matrix(out),
+			 c10::cuda::getCurrentCUDAStream());
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
