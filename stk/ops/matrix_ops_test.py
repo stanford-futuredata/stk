@@ -5,10 +5,14 @@ import stk
 import torch
 
 
-@parameterized.parameters((8, 16, 0.0, 1))
-class ConversionTest(parameterized.TestCase):
+@parameterized.parameters(
+    (8, 16, 0.0, 1),
+    (8, 16, 0.5, 1),
+    (8, 16, .95, 1),
+    (8, 16, 0.0, 8))
+class MatrixOpsTest(parameterized.TestCase):
 
-    def testConversion_DenseToSparse(self, rows, cols, sparsity, blocking):
+    def testMatrixOps_FormatConversion(self, rows, cols, sparsity, blocking):
         mask = stk.random.dense_mask(rows, cols, sparsity, blocking)
         x = (torch.randn(rows, cols) * mask).type(torch.float16)
 
