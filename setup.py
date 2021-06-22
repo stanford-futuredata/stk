@@ -6,7 +6,7 @@ from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 ext_modules = [
     CUDAExtension(
         "backend",
-        ["backend.cc"],
+        ["csrc/backend.cc"],
         include_dirs = ["/usr/local/sputnik/include"],
         libraries = ["sputnik"],
         library_dirs = ["/usr/local/sputnik/lib"],

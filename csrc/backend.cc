@@ -14,24 +14,13 @@
 #define CHECK_SCALAR(x) TORCH_CHECK(x.numel() == 1)
 #define CHECK_VECTOR(x) TORCH_CHECK(x.ndimension() == 1)
 #define CHECK_MATRIX(x) TORCH_CHECK(x.ndimension() == 2)
+#define CHECK_3D(x) TORCH_CHECK(x.ndimension() == 3)
 #define CHECK_SHAPE(x) TORCH_CHECK(x.numel() == 2)
 
 void validate_shape(torch::Tensor shape) {
   CHECK_CPU(shape);
   CHECK_SHAPE(shape);
   CHECK_INT(shape);
-}
-
-void validate_block_size(torch::Tensor block_size) {
-  CHECK_CPU(block_size);
-  CHECK_SCALAR(block_size);
-  CHECK_INT(block_size);
-}
-
-void validate_nonzeros(torch::Tensor nonzeros) {
-  CHECK_CPU(nonzeros);
-  CHECK_SCALAR(nonzeros);
-  CHECK_INT(nonzeros);
 }
 
 void validate_transpose(torch::Tensor transpose) {
@@ -41,26 +30,29 @@ void validate_transpose(torch::Tensor transpose) {
 }
 
 void validate_sparse(torch::Tensor shape,
-		     torch::Tensor block_size,
-		     torch::Tensor nonzeros,
 		     torch::Tensor data,
 		     torch::Tensor offsets,
 		     torch::Tensor indices,
 		     torch::Tensor transpose) {
   validate_shape(shape);
-  validate_block_size(block_size);
-  validate_nonzeros(nonzeros);
   validate_transpose(transpose);
   CHECK_CUDA(data);
-  CHECK_VECTOR(data);
+  CHECK_3D(data);
   CHECK_HALF(data);
   CHECK_CUDA(offsets);
   CHECK_VECTOR(offsets);
   CHECK_INT(offsets);
   CHECK_CUDA(indices);
   CHECK_VECTOR(indices);
-  CHECK_SHORT(indices);  
+  CHECK_SHORT(indices);
+
+  // Blocking must be square.
+  TORCH_CHECK(data.size(1) == data.size(2));
+
+  // TODO(tgale): Generalize this.
+  TORCH_CHECK(data.size(1) == 128);
 }
+
 
 void validate_dense(torch::Tensor x) {
   CHECK_CUDA(x);
@@ -99,15 +91,11 @@ int access_metadata(torch::Tensor m, int idx = 0) {
 
 // TODO(tgale): Overload this to handle transposes.
 sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
-					    torch::Tensor block_size,
-					    torch::Tensor nonzeros,
 					    torch::Tensor data,
 					    torch::Tensor offsets,
 					    torch::Tensor indices,
 					    torch::Tensor transpose) {
   validate_sparse(shape,
-		  block_size,
-		  nonzeros,
 		  data,
 		  offsets,
 		  indices,
@@ -115,11 +103,10 @@ sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
   
   // TODO(tgale): Generalize this.
   TORCH_CHECK(!access_metadata(transpose));
-  auto blocking = sputnik::block::AsBlockSize(access_metadata(block_size));
   return sputnik::block::BlockMatrix(access_metadata(shape, 0),
 				     access_metadata(shape, 1),
-				     blocking,
-				     access_metadata(nonzeros),
+				     sputnik::block::AsBlockSize(data.size(1)),				     
+				     data.numel()
 				     data.data_ptr(),
 				     offsets.data_ptr(),
 				     indices.data_ptr());
@@ -130,8 +117,6 @@ sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
 //
 
 void dsd(torch::Tensor shape,
-	 torch::Tensor block_size,
-	 torch::Tensor nonzeros,
 	 torch::Tensor data,
 	 torch::Tensor offsets,
 	 torch::Tensor indices,
@@ -139,8 +124,6 @@ void dsd(torch::Tensor shape,
 	 torch::Tensor rhs,
 	 torch::Tensor out) {
   auto lhs = as_block_matrix(shape,
-			     block_size,
-			     nonzeros,
 			     data,
 			     offsets,
 			     indices,
