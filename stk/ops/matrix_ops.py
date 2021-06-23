@@ -4,36 +4,49 @@ import numpy as np
 
 
 @torch.no_grad()
-def _row_indices(nnz, offsets):
-    # TODO(tgale): Update to use 1D COO helper.    
+def _row_indices(x):
+    nnz = x.nnz / x.blocking ** 2
+    offsets = x.offsets / x.blocking **2
     out = np.digitize(np.arange(nnz), bins=offsets.cpu().numpy()) - 1
     return torch.from_numpy(out.astype(np.int32)).to(offsets.device)
 
-
 @torch.no_grad()
-def _unblock(indices, blocking):
-    indices = torch.reshape(indices, [1, indices.numel(), 1])
-    out = torch.tile(indices, (blocking, 1, blocking))
-    offsets = torch.reshape(torch.arange(blocking), [1, 1, blocking])
-    out += offsets
-    return out.flatten()
+def _expand_for_blocking(idxs, blocking):
+    # Duplicate for block column dimension.
+    idxs = torch.tile(torch.reshape(idxs, [idxs.size()[0], 1, 2]), (1, blocking, 1))
 
+    # Update the column indices.
+    idxs[:, :, 1] *= blocking
+    idxs[:, :, 1] += torch.reshape(torch.arange(blocking), [1, blocking])
+
+    # Duplicate for block row dimension.
+    idxs = torch.reshape(idxs, [idxs.size()[0], 1, blocking, 2])
+    idxs = torch.tile(idxs, (1, blocking, 1, 1))
+
+    # Update the row indices.
+    idxs[:, :, :, 0] *= blocking
+    idxs[:, :, :, 0] += torch.reshape(torch.arange(blocking), [1, blocking, 1])
+    idxs = torch.reshape(idxs, [-1, 2])
+    return idxs
 
 # TODO(tgale): Add input type checking.
 @torch.no_grad()
 def to_dense(x):
     assert isinstance(x, Matrix)
-    # TODO(tgale): Handle blocking.
-    row_idxs = _row_indices(x.nnz, x.offsets)
-    col_idxs = _unblock(x.indices, x.blocking)
-    indices = (row_idxs * x.size()[1] + col_idxs).type(torch.int64)
+
+    # TODO(tgale): Update to use 1D COO helper.
+    row_idxs = _row_indices(x)
+    col_idxs = x.indices / x.blocking
+    indices = _expand_for_blocking(torch.stack([row_idxs, col_idxs], dim=1), x.blocking)
+    indices = (indices[:, 0] * x.size()[1] + indices[:, 1]).type(torch.int64)
+
     out = torch.zeros(x.size()[0] * x.size()[1], dtype=x.dtype, device=x.device)
     out.scatter_(0, indices, x.data.flatten())
     return out.reshape(x.size())
 
 
 @torch.no_grad()
-def mask(x, blocking=1):
+def _mask(x, blocking=1):
     assert x.dim() == 2
     assert x.size()[0] % blocking == 0
     assert x.size()[1] % blocking == 0
@@ -47,21 +60,24 @@ def mask(x, blocking=1):
 # TODO(tgale): Add input type checking.
 @torch.no_grad()
 def to_sparse(x, blocking=1):
-    m = mask(x)
+    m = _mask(x, blocking)
 
-    # TODO(tgale): Set to appropriate type for input matrix.    
+    # TODO(tgale): Set to appropriate type for input matrix.
     row_nnzs = torch.sum(m, dim=1).type(torch.int32)
     zeros = torch.zeros((1,), dtype=row_nnzs.dtype, device=row_nnzs.device)
     offsets = torch.cat([zeros, torch.cumsum(row_nnzs, dim=0)])
     offsets *= blocking * blocking
     offsets = offsets.type(torch.int32)
-    
+
     indices = torch.nonzero(m)[:, 1].type(torch.int16)
     indices *= blocking
-    
-    m = torch.reshape(m, [m.size()[0], 1, m.size()[1], 1])
-    m = torch.tile(m, (1, blocking, 1, blocking))
-    nonzero_indices = torch.nonzero(m.flatten()).flatten()
-    data = torch.gather(x.flatten(), dim=0, index=nonzero_indices)
-    return Matrix(x.size(), data, indices, offsets)
 
+    # Nonzero indices in the dense matrix.
+    nonzero_indices = torch.nonzero(m)
+    nonzero_indices = _expand_for_blocking(nonzero_indices, blocking)
+    nonzero_indices = nonzero_indices[:, 0] * x.size()[1] + nonzero_indices[:, 1]
+
+    # Gather the data and construct the sparse matrix.
+    data = torch.gather(x.flatten(), dim=0, index=nonzero_indices)
+    data = torch.reshape(data, [-1, blocking, blocking])
+    return Matrix(x.size(), data, indices, offsets)
