@@ -53,13 +53,16 @@ void validate_sparse(torch::Tensor shape,
   TORCH_CHECK(data.size(1) == 128);
 }
 
+bool is_transposed(torch::Tensor x) {
+  return x.strides()[0] == 1 && x.strides()[1] == x.sizes()[0];
+}
 
 void validate_dense(torch::Tensor x) {
   CHECK_CUDA(x);
   CHECK_MATRIX(x);
   CHECK_HALF(x);
 
-  // TODO(tgale): Validate strides.
+  TORCH_CHECK(x.is_contiguous() || is_transposed(x));
 }
 
 //
@@ -68,20 +71,9 @@ void validate_dense(torch::Tensor x) {
 
 sputnik::block::Matrix as_matrix(torch::Tensor x) {
   validate_dense(x);
-
-  // TODO(tgale): Generalize this and add stride checks
-  // to the validation helper.
-  TORCH_CHECK(x.is_contiguous());
-  return sputnik::block::Matrix(x.sizes()[0],
-				x.sizes()[1],
-				x.data_ptr());
-}
-
-bool is_transposed(torch::Tensor x) {
-  // If it passes validation and we're not contiguous,
-  // the matrix is transposed.
-  validate_dense(x);
-  return !x.is_contiguous();
+  int rows = is_transposed(x) ? x.sizes()[1] : x.sizes()[0];
+  int cols = is_transposed(x) ? x.sizes()[0] : x.sizes()[1];
+  return sputnik::block::Matrix(rows, cols, x.data_ptr());
 }
 
 int access_metadata(torch::Tensor m, int idx = 0) {
@@ -121,18 +113,30 @@ void dsd(torch::Tensor shape,
 	 torch::Tensor offsets,
 	 torch::Tensor indices,
 	 torch::Tensor transpose_a,
-	 torch::Tensor rhs,
-	 torch::Tensor out) {
+	 torch::Tensor rhs_t,
+	 torch::Tensor out_t) {
+  // Convert the arguments to sputnik types.
   auto lhs = as_block_matrix(shape,
 			     data,
 			     offsets,
 			     indices,
 			     transpose_a);
+  bool transpose_lhs = access_metadata(transpose_a);
+  auto rhs = as_matrix(rhs_t);
+  bool transpose_rhs = is_transposed(rhs_t);
+  auto out = as_matrix(out_t);
+
+  // Validate the problem configuration.
+  TORCH_CHECK(sputnik::block::ValidMatmul(lhs,
+					  transpose_lhs,
+					  rhs,
+					  transpose_rhs,
+					  out));
   sputnik::block::Matmul(lhs,
-			 (bool)access_metadata(transpose_a),
-			 as_matrix(rhs),
-			 is_transposed(rhs),
-			 as_matrix(out),
+			 transpose_lhs,
+			 rhs,
+			 transpose_rhs,
+			 out,
 			 c10::cuda::getCurrentCUDAStream());
 }
 

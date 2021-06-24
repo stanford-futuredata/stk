@@ -5,10 +5,16 @@ import stk
 import torch
 
 
+# An assortment of problems designed to make sure
+# the bindings are operating correctly. Extensive
+# kernel tests done through Sputnik.
 _SINGLY_SPARSE_TESTS = (
     (128, 128, 8, False, False, 128, 0.0),
     (256, 256, 8, False, False, 128, 0.5),
-    (2048, 1024, 512, False, False, 128, 0.8),    
+    (2048, 1024, 512, False, False, 128, 0.8),
+    (128, 128, 8, False, True, 128, 0.0),
+    (256, 256, 8, False, True, 128, 0.5),
+    (2048, 1024, 512, False, True, 128, 0.8),
 )
 
 
@@ -21,7 +27,7 @@ def _dense_and_sparse(rows, cols, sparsity, blocking):
 
 
 def _dense(rows, cols):
-    cuda_device = torch.device("cuda")    
+    cuda_device = torch.device("cuda")
     return torch.randn(rows, cols).type(torch.float16).to(cuda_device)
 
 
@@ -38,7 +44,7 @@ class LinearOpsTest(parameterized.TestCase):
         # Construct the operands.
         a_shape = (k, m) if trans_a else (m, k)
         a_dense, a = _dense_and_sparse(*a_shape, sparsity, blocking)
-        b_shape = (n, k) if trans_b else (k, n)        
+        b_shape = (n, k) if trans_b else (k, n)
         b = _dense(*b_shape)
 
         # Execute the matmul.
@@ -51,6 +57,6 @@ class LinearOpsTest(parameterized.TestCase):
         self.assertEqual(expected_out.size()[1], out.size()[1])
         self.assertTrue(torch.allclose(out, expected_out))
 
-    
+
 if __name__ == '__main__':
     unittest.main()
