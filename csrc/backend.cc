@@ -100,13 +100,13 @@ sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
 		  offsets,
 		  indices,
 		  transpose);
-  
+
   // TODO(tgale): Generalize this.
   TORCH_CHECK(!access_metadata(transpose));
   return sputnik::block::BlockMatrix(access_metadata(shape, 0),
 				     access_metadata(shape, 1),
-				     sputnik::block::AsBlockSize(data.size(1)),				     
-				     data.numel()
+				     sputnik::block::AsBlockSize(data.size(1)),
+				     data.numel(),
 				     data.data_ptr(),
 				     offsets.data_ptr(),
 				     indices.data_ptr());

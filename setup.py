@@ -5,7 +5,7 @@ from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 # need to already have it installed.
 ext_modules = [
     CUDAExtension(
-        "backend",
+        "sputnik_backend",
         ["csrc/backend.cc"],
         include_dirs = ["/usr/local/sputnik/include"],
         libraries = ["sputnik"],
@@ -13,8 +13,9 @@ ext_modules = [
         extra_compile_ars={"cxx": ["-fopenmp"]})
 ]
 
+# TODO(tgale): Update this to install the python sources.
 setup(
-    name="stk_backend",
+    name="sputnik_backend",
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension}
 )

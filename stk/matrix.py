@@ -82,15 +82,15 @@ def _validate_matrix(shape, data, indices, offsets):
             f"Expected int32 offsets. Got {offsets.dtype} offsets.")
     return data
 
-    
+
 class Matrix(object):
-    """A matrix stored in sparse format. 
+    """A matrix stored in sparse format.
 
     Underlying format is block compressed sparse row (BCSR).
 
     TODO(tgale): Make this mirror torch.Tensor API as much as possible.
     """
-    
+
     def __init__(self,
                  size,
                  data,
@@ -102,6 +102,7 @@ class Matrix(object):
 
         # Lightweight validation.
         self._data = _validate_matrix(self._size, data, self._indices, self._offsets)
+        self._transposed = False
 
 
     def validate(self):
@@ -110,6 +111,25 @@ class Matrix(object):
 
         # TODO(tgale): Add heavyweight data validation.
 
+    def to(self, device):
+        # TODO(tgale): Handle type conversions here. We
+        # need to set the appropriate meta-data type for
+        # the given floating-point type.
+        self._data = self._data.to(device)
+        self._indices = self._indices.to(device)
+        self._offsets = self._offsets.to(device)
+        return self
+
+    def t(self):
+        self._transposed = not self.transposed
+
+    def contiguous(self):
+        raise ValueError("Not yet implemented.")
+
+    @property
+    def is_contiguous(self):
+        return not self._transposed
+
     @property
     def is_cuda(self):
         return self._data.is_cuda
@@ -117,7 +137,7 @@ class Matrix(object):
     @property
     def device(self):
         return self._data.device
-    
+
     def size(self):
         return self._size
 
@@ -135,7 +155,7 @@ class Matrix(object):
     @property
     def offsets(self):
         return self._offsets
-    
+
     @property
     def dtype(self):
         return self.data.dtype
@@ -147,7 +167,7 @@ class Matrix(object):
     @property
     def blocking(self):
         return self.data.shape[1]
-    
+
     @property
     def requires_grad(self):
         return self.data.requires_grad
@@ -158,4 +178,3 @@ class Matrix(object):
                       self.data.grad,
                       self.indices,
                       self.offsets)
-        

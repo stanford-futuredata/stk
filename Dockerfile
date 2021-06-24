@@ -42,5 +42,10 @@ RUN pip3 install torch==1.9.0+cu111 \
      	  torchaudio==0.9.0 \
      	  -f https://download.pytorch.org/whl/torch_stable.html
 
+# Install STK deps and set path.
+RUN pip3 install absl-py
+ENV PYTHONPATH="/mount/stk:${PYTHONPATH}"
+ENV LD_LIBRARY_PATH="/usr/local/sputnik/lib:${LD_LIBRARY_PATH}"
+
 # Set the working directory.
 WORKDIR /mount/stk
