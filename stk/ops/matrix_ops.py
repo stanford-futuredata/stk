@@ -10,6 +10,9 @@ def _row_indices(x):
     out = np.digitize(np.arange(nnz), bins=offsets.cpu().numpy()) - 1
     return torch.from_numpy(out.astype(np.int32)).to(offsets.device)
 
+
+# TODO(tgale): Replace this helper with a custom kernel. This operation
+# is much simpler to do than how it's currently implemented.
 @torch.no_grad()
 def _expand_for_blocking(idxs, blocking):
     # Duplicate for block column dimension.
@@ -29,12 +32,12 @@ def _expand_for_blocking(idxs, blocking):
     idxs = torch.reshape(idxs, [-1, 2])
     return idxs
 
+
 # TODO(tgale): Add input type checking.
 @torch.no_grad()
 def to_dense(x):
     assert isinstance(x, Matrix)
 
-    # TODO(tgale): Update to use 1D COO helper.
     row_idxs = _row_indices(x)
     col_idxs = x.indices / x.blocking
     indices = _expand_for_blocking(torch.stack([row_idxs, col_idxs], dim=1), x.blocking)

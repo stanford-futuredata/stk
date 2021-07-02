@@ -121,7 +121,9 @@ class Matrix(object):
         return self
 
     def t(self):
-        self._transposed = not self.transposed
+        self._transposed = not self._transposed
+        self._size = torch.Size((self._size[1], self._size[0]))
+        return self
 
     def contiguous(self):
         raise ValueError("Not yet implemented.")
