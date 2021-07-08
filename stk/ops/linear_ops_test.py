@@ -112,6 +112,26 @@ class LinearOpsTest(parameterized.TestCase):
         self.assertEqual(expected_out.size()[1], out.size()[1])
         self.assertTrue(torch.allclose(out, expected_out))
 
+    @parameterized.parameters(*_SINGLY_SPARSE_TESTS)
+    def testLinearOps_Ssd(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+        # Construct the operands.
+        a_shape = (k, m) if trans_a else (m, k)
+        a_dense, a = _dense_and_sparse(*a_shape, sparsity, blocking)
+        b_shape = (n, k) if trans_b else (k, n)
+        b = _dense(*b_shape)
+        _, topo = _dense_and_sparse(m, n, sparsity, blocking)
+
+        # Execute the matmul.
+        out = _sparse_out_with_transpose(stk.ops.ssd, a, b, topo, trans_a, trans_b)
+        expected_out = _sparse_out_with_transpose(_mmm, a_dense, b, topo, trans_a, trans_b)
+
+        # Validate the results.
+        out = stk.ops.to_dense(out)
+        self.assertEqual(out.dim(), 2)
+        self.assertEqual(expected_out.size()[0], out.size()[0])
+        self.assertEqual(expected_out.size()[1], out.size()[1])
+        self.assertTrue(torch.allclose(out, expected_out))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -123,14 +123,11 @@ torch::Tensor row_indices(torch::Tensor shape,
 /// Transpose helper.
 //
 
-void transpose(torch::Tensor shape,
-	       torch::Tensor data,
-	       torch::Tensor offsets,
-	       torch::Tensor indices,
-	       torch::Tensor *offsets_t,
-	       torch::Tensor *indices_t,
-	       torch::Tensor *block_offsets_t) {
-  // Copy the meta-data to the host.
+std::vector<torch::Tensor> transpose(torch::Tensor shape,
+				     torch::Tensor data,
+				     torch::Tensor offsets,
+				     torch::Tensor indices) {
+  const int kNonzeros = indices.numel();
   const int kBlockSize = data.size(1);
   const int kCols = access_metadata(shape, 1);
   const int kBlockCols = kCols / kBlockSize;
@@ -145,14 +142,13 @@ void transpose(torch::Tensor shape,
   torch::Tensor row_idxs = row_indices(shape, data, offsets, indices);
   torch::Tensor sort_indices = indices + row_idxs / kBlockSize;
   torch::Tensor gather_indices = sort_indices.argsort();
-  *indices_t = row_idxs.gather(0, gather_indices);
+  torch::Tensor indices_t = row_idxs.gather(0, gather_indices);
 
   // Sort block offsets by column indices to get the transposed
   // matrix's block locations for each block row.
   const int kValuesPerBlock = kBlockSize * kBlockSize;
   const int kBytesPerBlock = kValuesPerBlock * sizeof(sputnik::half);
 
-  const int kNonzeros = indices.numel();
   auto options = torch::TensorOptions()
     .dtype(torch::kInt32)
     .device(data.device());
@@ -161,13 +157,14 @@ void transpose(torch::Tensor shape,
 						(kNonzeros - 1) * kBytesPerBlock,
 						kNonzeros,
 						options);
-  *block_offsets_t = block_offsets.gather(0, gather_indices);
+  torch::Tensor block_offsets_t = block_offsets.gather(0, gather_indices);
 
   // Calculate the transposed matrix's offsets.
   torch::Tensor nnz_per_column = indices.histc(kBlockCols, 0, kCols);
   torch::Tensor zero = torch::zeros(1, options);
-  *offsets_t = at::cat({zero, nnz_per_column.cumsum(0) * kValuesPerBlock});
-  *offsets_t = offsets_t->to(options);
+  torch::Tensor offsets_t = at::cat({zero, nnz_per_column.cumsum(0) * kValuesPerBlock});
+  offsets_t = offsets_t.to(options);
+  return {indices_t, offsets_t, block_offsets_t};
 }
 
 void standardize_shape(torch::Tensor shape, bool transpose) {
@@ -210,36 +207,13 @@ void dsd(torch::Tensor shape,
 					  out));
 
   if (transpose_lhs) {
-    // Transposed indices.
-    auto indices_options = torch::TensorOptions()
-      .dtype(torch::kInt16)
-      .device(data.device());
-    const int kNonzeros = indices.numel();
-    torch::Tensor indices_t = torch::empty(kNonzeros,
-					   indices_options);
-
-    // Transposed offsets.
-    auto offsets_options = torch::TensorOptions()
-      .dtype(torch::kInt32)
-      .device(data.device());
-    const int kBlockSize = data.size(1);
-    const int kCols = access_metadata(shape, 1);
-    const int kBlockCols = kCols / kBlockSize;
-    torch::Tensor offsets_t = torch::empty(kBlockCols + 1,
-					   offsets_options);
-
-    // Transposed block offsets.
-    torch::Tensor block_offsets_t = torch::empty(kNonzeros,
-						 offsets_options);
-
     // Populate the transpose meta-data.
-    transpose(shape, data, offsets, indices, &offsets_t,
-    	      &indices_t, &block_offsets_t);
+    auto meta = transpose(shape, data, offsets, indices);
 
     // Set the data pointers.
-    lhs.indices_t = indices_t.data_ptr();
-    lhs.offsets_t = offsets_t.data_ptr();
-    lhs.block_offsets = block_offsets_t.data_ptr();
+    lhs.indices_t = meta[0].data_ptr();
+    lhs.offsets_t = meta[1].data_ptr();
+    lhs.block_offsets = meta[2].data_ptr();
     CALL_CUDA(sputnik::block::MatmulEx(lhs,
 				       transpose_lhs,
 				       rhs,
@@ -284,36 +258,13 @@ void dds(torch::Tensor lhs_t,
 					  out));
 
   if (!transpose_rhs) {
-    // Transposed indices.
-    auto indices_options = torch::TensorOptions()
-      .dtype(torch::kInt16)
-      .device(data.device());
-    const int kNonzeros = indices.numel();
-    torch::Tensor indices_t = torch::empty(kNonzeros,
-					   indices_options);
-
-    // Transposed offsets.
-    auto offsets_options = torch::TensorOptions()
-      .dtype(torch::kInt32)
-      .device(data.device());
-    const int kBlockSize = data.size(1);
-    const int kCols = access_metadata(shape, 1);
-    const int kBlockCols = kCols / kBlockSize;
-    torch::Tensor offsets_t = torch::empty(kBlockCols + 1,
-					   offsets_options);
-
-    // Transposed block offsets.
-    torch::Tensor block_offsets_t = torch::empty(kNonzeros,
-						 offsets_options);
-
     // Populate the transpose meta-data.
-    transpose(shape, data, offsets, indices, &offsets_t,
-    	      &indices_t, &block_offsets_t);
+    auto meta = transpose(shape, data, offsets, indices);
 
     // Set the data pointers.
-    rhs.indices_t = indices_t.data_ptr();
-    rhs.offsets_t = offsets_t.data_ptr();
-    rhs.block_offsets = block_offsets_t.data_ptr();
+    rhs.indices_t = meta[0].data_ptr();
+    rhs.offsets_t = meta[1].data_ptr();
+    rhs.block_offsets = meta[2].data_ptr();
     CALL_CUDA(sputnik::block::MatmulEx(lhs,
 				       transpose_lhs,
 				       rhs,
@@ -361,8 +312,68 @@ void sdd(torch::Tensor lhs_t,
 				   c10::cuda::getCurrentCUDAStream()));
 }
 
+void ssd(torch::Tensor lhs_shape,
+	 torch::Tensor lhs_data,
+	 torch::Tensor lhs_offsets,
+	 torch::Tensor lhs_indices,
+	 torch::Tensor transpose_a,
+	 torch::Tensor rhs_t,
+	 torch::Tensor out_shape,
+	 torch::Tensor out_data,
+	 torch::Tensor out_offsets,
+	 torch::Tensor out_indices) {
+  // Convert the arguments to sputnik types.
+  validate_transpose(transpose_a);
+  bool transpose_lhs = access_metadata(transpose_a);
+  validate_shape(lhs_shape);
+  standardize_shape(lhs_shape, transpose_lhs);
+  auto lhs = as_block_matrix(lhs_shape,
+			     lhs_data,
+			     lhs_offsets,
+			     lhs_indices);
+
+  auto rhs = as_matrix(rhs_t);
+  bool transpose_rhs = is_transposed(rhs_t);
+
+  auto out = as_block_matrix(out_shape,
+			     out_data,
+			     out_offsets,
+			     out_indices);
+
+  // Validate the problem configuration.
+  TORCH_CHECK(sputnik::block::ValidMatmul(lhs,
+					  transpose_lhs,
+					  rhs,
+					  transpose_rhs,
+					  out));
+
+  if (transpose_lhs) {
+    // Populate the transpose meta-data.
+    auto meta = transpose(lhs_shape, lhs_data, lhs_offsets, lhs_indices);
+
+    // Set the data pointers.
+    lhs.indices_t = meta[0].data_ptr();
+    lhs.offsets_t = meta[1].data_ptr();
+    lhs.block_offsets = meta[2].data_ptr();
+    CALL_CUDA(sputnik::block::MatmulEx(lhs,
+				       transpose_lhs,
+				       rhs,
+				       transpose_rhs,
+				       out,
+				       c10::cuda::getCurrentCUDAStream()));
+  } else {
+    CALL_CUDA(sputnik::block::Matmul(lhs,
+				     transpose_lhs,
+				     rhs,
+				     transpose_rhs,
+				     out,
+				     c10::cuda::getCurrentCUDAStream()));
+  }
+}
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("dsd", &dsd, "dense = op(sparse) x op(dense)");
   m.def("dds", &dds, "dense = op(dense) x op(sparse)");
   m.def("sdd", &sdd, "sparse = op(dense) x op(dense)");
+  m.def("ssd", &ssd, "sparse = op(dense) x op(sparse)");
 }

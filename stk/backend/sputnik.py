@@ -36,3 +36,34 @@ class SDD(torch.autograd.Function):
 
 
 sdd = SDD.apply
+
+
+class SSD(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx,
+                lhs_shape,
+                lhs_data,
+                lhs_offsets,
+                lhs_indices,
+                transpose_a,
+                rhs,
+                shape,
+                data,
+                offsets,
+                indices):
+        out = torch.empty_like(data)
+        backend.ssd(lhs_shape,
+                    lhs_data,
+                    lhs_offsets,
+                    lhs_indices,
+                    transpose_a,
+                    rhs,
+                    shape,
+                    out,
+                    offsets,
+                    indices)
+        return out
+
+
+ssd = SSD.apply
