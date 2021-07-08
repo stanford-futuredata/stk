@@ -9,17 +9,17 @@ import torch
 # the bindings are operating correctly. Extensive
 # kernel tests done through Sputnik.
 _SINGLY_SPARSE_TESTS = (
-    (128, 128, 8, False, False, 128, 0.0),
-    (256, 256, 8, False, False, 128, 0.5),
+    (128, 128, 128, False, False, 128, 0.0),
+    (256, 256, 256, False, False, 128, 0.5),
     (2048, 1024, 512, False, False, 128, 0.8),
-    (128, 128, 8, False, True, 128, 0.0),
-    (256, 256, 8, False, True, 128, 0.5),
+    (128, 128, 128, False, True, 128, 0.0),
+    (256, 256, 256, False, True, 128, 0.5),
     (2048, 1024, 512, False, True, 128, 0.8),
-    (128, 128, 8, True, False, 128, 0.0),
-    (256, 256, 8, True, False, 128, 0.5),
+    (128, 128, 128, True, False, 128, 0.0),
+    (256, 256, 256, True, False, 128, 0.5),
     (2048, 1024, 512, True, False, 128, 0.8),
-    (128, 128, 8, True, True, 128, 0.0),
-    (256, 256, 8, True, True, 128, 0.5),
+    (128, 128, 128, True, True, 128, 0.0),
+    (256, 256, 256, True, True, 128, 0.5),
     (2048, 1024, 512, True, True, 128, 0.8),
 )
 
@@ -43,6 +43,17 @@ def _with_transpose(op, a, b, trans_a, trans_b):
     return op(a, b)
 
 
+def _mmm(a, b, topo):
+    mask = stk.ops.to_dense(stk.ops.ones_like(topo))
+    return torch.mm(a, b) * mask
+
+
+def _sparse_out_with_transpose(op, a, b, topo, trans_a, trans_b):
+    a = a.t() if trans_a else a
+    b = b.t() if trans_b else b
+    return op(a, b, topo)
+
+
 class LinearOpsTest(parameterized.TestCase):
 
     @parameterized.parameters(*_SINGLY_SPARSE_TESTS)
@@ -58,6 +69,44 @@ class LinearOpsTest(parameterized.TestCase):
         expected_out = _with_transpose(torch.mm, a_dense, b, trans_a, trans_b)
 
         # Validate the results.
+        self.assertEqual(out.dim(), 2)
+        self.assertEqual(expected_out.size()[0], out.size()[0])
+        self.assertEqual(expected_out.size()[1], out.size()[1])
+        self.assertTrue(torch.allclose(out, expected_out))
+
+    @parameterized.parameters(*_SINGLY_SPARSE_TESTS)
+    def testLinearOps_Dds(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+        # Construct the operands.
+        a_shape = (k, m) if trans_a else (m, k)
+        a = _dense(*a_shape)
+        b_shape = (n, k) if trans_b else (k, n)
+        b_dense, b = _dense_and_sparse(*b_shape, sparsity, blocking)
+
+        # Execute the matmul.
+        out = _with_transpose(stk.ops.dds, a, b, trans_a, trans_b)
+        expected_out = _with_transpose(torch.mm, a, b_dense, trans_a, trans_b)
+
+        # Validate the results.
+        self.assertEqual(out.dim(), 2)
+        self.assertEqual(expected_out.size()[0], out.size()[0])
+        self.assertEqual(expected_out.size()[1], out.size()[1])
+        self.assertTrue(torch.allclose(out, expected_out))
+
+    @parameterized.parameters(*_SINGLY_SPARSE_TESTS)
+    def testLinearOps_Sdd(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+        # Construct the operands.
+        a_shape = (k, m) if trans_a else (m, k)
+        a = _dense(*a_shape)
+        b_shape = (n, k) if trans_b else (k, n)
+        b = _dense(*b_shape)
+        _, topo = _dense_and_sparse(m, n, sparsity, blocking)
+
+        # Execute the matmul.
+        out = _sparse_out_with_transpose(stk.ops.sdd, a, b, topo, trans_a, trans_b)
+        expected_out = _sparse_out_with_transpose(_mmm, a, b, topo, trans_a, trans_b)
+
+        # Validate the results.
+        out = stk.ops.to_dense(out)
         self.assertEqual(out.dim(), 2)
         self.assertEqual(expected_out.size()[0], out.size()[0])
         self.assertEqual(expected_out.size()[1], out.size()[1])

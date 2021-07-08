@@ -2,7 +2,6 @@ import sputnik_backend as backend
 import torch
 
 
-# TODO(tgale): Make this support transposes.
 class DSD(torch.autograd.Function):
 
     @staticmethod
@@ -11,4 +10,29 @@ class DSD(torch.autograd.Function):
         backend.dsd(shape, data, offsets, indices, transpose_a, rhs, out)
         return out
 
+
 dsd = DSD.apply
+
+
+class DDS(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, lhs, shape, data, offsets, indices, transpose_b):
+        out = torch.empty((lhs.size()[0], shape[1]), dtype=lhs.dtype, device=lhs.device)
+        backend.dds(lhs, shape, data, offsets, indices, transpose_b, out)
+        return out
+
+
+dds = DDS.apply
+
+
+class SDD(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, lhs, rhs, shape, data, offsets, indices):
+        out = torch.empty_like(data)
+        backend.sdd(lhs, rhs, shape, out, offsets, indices)
+        return out
+
+
+sdd = SDD.apply

@@ -20,7 +20,7 @@ def _expand_for_blocking(idxs, blocking):
 
     # Update the column indices.
     idxs[:, :, 1] *= blocking
-    idxs[:, :, 1] += torch.reshape(torch.arange(blocking), [1, blocking])
+    idxs[:, :, 1] += torch.reshape(torch.arange(blocking, device=idxs.device), [1, blocking])
 
     # Duplicate for block row dimension.
     idxs = torch.reshape(idxs, [idxs.size()[0], 1, blocking, 2])
@@ -28,7 +28,7 @@ def _expand_for_blocking(idxs, blocking):
 
     # Update the row indices.
     idxs[:, :, :, 0] *= blocking
-    idxs[:, :, :, 0] += torch.reshape(torch.arange(blocking), [1, blocking, 1])
+    idxs[:, :, :, 0] += torch.reshape(torch.arange(blocking, device=idxs.device), [1, blocking, 1])
     idxs = torch.reshape(idxs, [-1, 2])
     return idxs
 
@@ -84,3 +84,8 @@ def to_sparse(x, blocking=1):
     data = torch.gather(x.flatten(), dim=0, index=nonzero_indices)
     data = torch.reshape(data, [-1, blocking, blocking])
     return Matrix(x.size(), data, indices, offsets)
+
+
+@torch.no_grad()
+def ones_like(x):
+    return Matrix(x.size(), torch.ones_like(x.data), x.indices, x.offsets)

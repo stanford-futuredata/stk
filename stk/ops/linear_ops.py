@@ -11,7 +11,6 @@ def _make_shape_tensor(x):
 
 
 def _make_transpose_tensor(x):
-    # TODO(tgale): Update to handle transposes.
     return torch.tensor(
         [not x.is_contiguous],
         dtype=torch.int32,
@@ -26,3 +25,25 @@ def dsd(a, b):
         a.data, a.offsets, a.indices,
         _make_transpose_tensor(a),
         b)
+
+
+def dds(a, b):
+    assert isinstance(a, torch.Tensor)
+    assert isinstance(b, Matrix)
+    return sputnik.dds(
+        a,
+        _make_shape_tensor(b),
+        b.data, b.offsets, b.indices,
+        _make_transpose_tensor(b))
+
+
+def sdd(a, b, topo):
+    assert isinstance(a, torch.Tensor)
+    assert isinstance(b, torch.Tensor)
+    assert isinstance(topo, Matrix)
+    assert topo.is_contiguous
+    out = sputnik.sdd(
+        a, b,
+        _make_shape_tensor(topo),
+        topo.data, topo.offsets, topo.indices)
+    return Matrix(topo.size(), out, topo.indices, topo.offsets)
