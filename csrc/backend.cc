@@ -175,6 +175,28 @@ void standardize_shape(torch::Tensor shape, bool transpose) {
 }
 
 //
+/// Bitmask helper.
+//
+
+size_t size_in_bytes(int rows, int columns) {
+  const int kAlignment = 64;
+  int column_entries = (columns + kAlignment - 1) / kAlignment;
+  return column_entries * rows * sizeof(uint64_t);
+}
+
+torch::Tensor allocate_bitmask(sputnik::block::BlockMatrix m, bool trans, torch::Device device) {
+  int block_size = AsInt(m.block_size);
+  int block_rows = (trans ? m.cols : m.rows) / block_size;
+  int block_cols = (trans ? m.rows : m.cols) / block_size;
+  size_t bytes = size_in_bytes(block_rows, block_cols);
+
+  auto options = torch::TensorOptions()
+    .dtype(torch::kInt8)
+    .device(device);
+  return torch::empty(bytes, options);
+}
+
+//
 /// Custom operations.
 //
 
@@ -371,9 +393,83 @@ void ssd(torch::Tensor lhs_shape,
   }
 }
 
+void dss(torch::Tensor lhs_shape,
+	 torch::Tensor lhs_data,
+	 torch::Tensor lhs_offsets,
+	 torch::Tensor lhs_indices,
+	 torch::Tensor transpose_a,
+	 torch::Tensor rhs_shape,
+	 torch::Tensor rhs_data,
+	 torch::Tensor rhs_offsets,
+	 torch::Tensor rhs_indices,
+	 torch::Tensor transpose_b,
+	 torch::Tensor out_t) {
+  // Convert the arguments to sputnik types.
+  validate_transpose(transpose_a);
+  bool transpose_lhs = access_metadata(transpose_a);
+  validate_shape(lhs_shape);
+  standardize_shape(lhs_shape, transpose_lhs);
+  auto lhs = as_block_matrix(lhs_shape,
+			     lhs_data,
+			     lhs_offsets,
+			     lhs_indices);
+
+  validate_transpose(transpose_b);
+  bool transpose_rhs = access_metadata(transpose_b);
+  validate_shape(rhs_shape);
+  standardize_shape(rhs_shape, transpose_rhs);
+  auto rhs = as_block_matrix(rhs_shape,
+			     rhs_data,
+			     rhs_offsets,
+			     rhs_indices);
+  auto out = as_matrix(out_t);
+
+  // Validate the problem configuration.
+  TORCH_CHECK(sputnik::block::ValidMatmul(lhs,
+					  transpose_lhs,
+					  rhs,
+					  transpose_rhs,
+					  out));
+
+  // Allocate workspace for the bitmasks.
+  auto lhs_bitmask = allocate_bitmask(lhs, transpose_lhs, lhs_data.device());
+  lhs.bitmask = lhs_bitmask.data_ptr();
+  auto rhs_bitmask = allocate_bitmask(rhs, transpose_rhs, rhs_data.device());
+  rhs.bitmask = rhs_bitmask.data_ptr();
+
+  // Handle exposed transposes.
+  std::vector<torch::Tensor> lhs_meta, rhs_meta;
+  if (transpose_lhs) {
+    // Populate the transpose meta-data.
+    lhs_meta = transpose(lhs_shape, lhs_data, lhs_offsets, lhs_indices);
+
+    // Set the data pointers.
+    lhs.indices_t = lhs_meta[0].data_ptr();
+    lhs.offsets_t = lhs_meta[1].data_ptr();
+    lhs.block_offsets = lhs_meta[2].data_ptr();
+  }
+  if (!transpose_rhs) {
+    // Populate the transpose meta-data.
+    rhs_meta = transpose(rhs_shape, rhs_data, rhs_offsets, rhs_indices);
+
+    // Set the data pointers.
+    rhs.indices_t = rhs_meta[0].data_ptr();
+    rhs.offsets_t = rhs_meta[1].data_ptr();
+    rhs.block_offsets = rhs_meta[2].data_ptr();
+  }
+
+  CALL_CUDA(sputnik::block::MatmulEx(lhs,
+				     transpose_lhs,
+				     rhs,
+				     transpose_rhs,
+				     out,
+				     c10::cuda::getCurrentCUDAStream()));
+}
+
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("dsd", &dsd, "dense = op(sparse) x op(dense)");
   m.def("dds", &dds, "dense = op(dense) x op(sparse)");
   m.def("sdd", &sdd, "sparse = op(dense) x op(dense)");
   m.def("ssd", &ssd, "sparse = op(dense) x op(sparse)");
+  m.def("dss", &dss, "dense = op(sparse) x op(sparse)");
 }

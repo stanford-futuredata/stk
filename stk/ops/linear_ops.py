@@ -62,3 +62,15 @@ def ssd(a, b, topo):
         _make_shape_tensor(topo),
         topo.data, topo.offsets, topo.indices)
     return Matrix(topo.size(), out, topo.indices, topo.offsets)
+
+
+def dss(a, b):
+    assert isinstance(a, Matrix)
+    assert isinstance(b, Matrix)
+    return sputnik.dss(
+        _make_shape_tensor(a),
+        a.data, a.offsets, a.indices,
+        _make_transpose_tensor(a),
+        _make_shape_tensor(b),
+        b.data, b.offsets, b.indices,
+        _make_transpose_tensor(b))
