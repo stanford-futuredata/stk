@@ -30,12 +30,6 @@ void validate_shape(torch::Tensor shape) {
   CHECK_INT(shape);
 }
 
-void validate_transpose(torch::Tensor transpose) {
-  CHECK_CPU(transpose);
-  CHECK_SCALAR(transpose);
-  CHECK_INT(transpose);
-}
-
 void validate_sparse(torch::Tensor shape,
 		     torch::Tensor data,
 		     torch::Tensor offsets,
@@ -205,12 +199,10 @@ void dsd(torch::Tensor shape,
 	 torch::Tensor data,
 	 torch::Tensor offsets,
 	 torch::Tensor indices,
-	 torch::Tensor transpose_a,
+	 bool transpose_lhs,
 	 torch::Tensor rhs_t,
 	 torch::Tensor out_t) {
   // Convert the arguments to sputnik types.
-  validate_transpose(transpose_a);
-  bool transpose_lhs = access_metadata(transpose_a);
   validate_shape(shape);
   standardize_shape(shape, transpose_lhs);
   auto lhs = as_block_matrix(shape,
@@ -252,13 +244,11 @@ void dds(torch::Tensor lhs_t,
 	 torch::Tensor data,
 	 torch::Tensor offsets,
 	 torch::Tensor indices,
-	 torch::Tensor transpose_b,
+	 bool transpose_rhs,
 	 torch::Tensor out_t) {
   // Convert the arguments to sputnik types.
   auto lhs = as_matrix(lhs_t);
   bool transpose_lhs = is_transposed(lhs_t);
-  validate_transpose(transpose_b);
-  bool transpose_rhs = access_metadata(transpose_b);
   validate_shape(shape);
   standardize_shape(shape, transpose_rhs);
   auto rhs = as_block_matrix(shape,
@@ -328,15 +318,13 @@ void ssd(torch::Tensor lhs_shape,
 	 torch::Tensor lhs_data,
 	 torch::Tensor lhs_offsets,
 	 torch::Tensor lhs_indices,
-	 torch::Tensor transpose_a,
+	 bool transpose_lhs,
 	 torch::Tensor rhs_t,
 	 torch::Tensor out_shape,
 	 torch::Tensor out_data,
 	 torch::Tensor out_offsets,
 	 torch::Tensor out_indices) {
   // Convert the arguments to sputnik types.
-  validate_transpose(transpose_a);
-  bool transpose_lhs = access_metadata(transpose_a);
   validate_shape(lhs_shape);
   standardize_shape(lhs_shape, transpose_lhs);
   auto lhs = as_block_matrix(lhs_shape,
@@ -382,16 +370,14 @@ void dss(torch::Tensor lhs_shape,
 	 torch::Tensor lhs_data,
 	 torch::Tensor lhs_offsets,
 	 torch::Tensor lhs_indices,
-	 torch::Tensor transpose_a,
+	 bool transpose_lhs,
 	 torch::Tensor rhs_shape,
 	 torch::Tensor rhs_data,
 	 torch::Tensor rhs_offsets,
 	 torch::Tensor rhs_indices,
-	 torch::Tensor transpose_b,
+	 bool transpose_rhs,
 	 torch::Tensor out_t) {
   // Convert the arguments to sputnik types.
-  validate_transpose(transpose_a);
-  bool transpose_lhs = access_metadata(transpose_a);
   validate_shape(lhs_shape);
   standardize_shape(lhs_shape, transpose_lhs);
   auto lhs = as_block_matrix(lhs_shape,
@@ -399,8 +385,6 @@ void dss(torch::Tensor lhs_shape,
 			     lhs_offsets,
 			     lhs_indices);
 
-  validate_transpose(transpose_b);
-  bool transpose_rhs = access_metadata(transpose_b);
   validate_shape(rhs_shape);
   standardize_shape(rhs_shape, transpose_rhs);
   auto rhs = as_block_matrix(rhs_shape,

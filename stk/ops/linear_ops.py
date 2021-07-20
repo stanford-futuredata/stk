@@ -9,21 +9,13 @@ def _make_shape_tensor(x):
         dtype=torch.int32,
         device=torch.device("cpu"))
 
-
-def _make_transpose_tensor(x):
-    return torch.tensor(
-        [not x.is_contiguous],
-        dtype=torch.int32,
-        device=torch.device("cpu"))
-
-
 def dsd(a, b):
     assert isinstance(a, Matrix)
     assert isinstance(b, torch.Tensor)
     return sputnik.dsd(
         _make_shape_tensor(a),
         a.data, a.offsets, a.indices,
-        _make_transpose_tensor(a),
+        not a.is_contiguous,
         b)
 
 
@@ -34,7 +26,7 @@ def dds(a, b):
         a,
         _make_shape_tensor(b),
         b.data, b.offsets, b.indices,
-        _make_transpose_tensor(b))
+        not b.is_contiguous)
 
 
 def sdd(a, b, topo):
@@ -57,7 +49,7 @@ def ssd(a, b, topo):
     out = sputnik.ssd(
         _make_shape_tensor(a),
         a.data, a.offsets, a.indices,
-        _make_transpose_tensor(a),
+        not a.is_contiguous,
         b,
         _make_shape_tensor(topo),
         topo.data, topo.offsets, topo.indices)
@@ -70,7 +62,7 @@ def dss(a, b):
     return sputnik.dss(
         _make_shape_tensor(a),
         a.data, a.offsets, a.indices,
-        _make_transpose_tensor(a),
+        not a.is_contiguous,
         _make_shape_tensor(b),
         b.data, b.offsets, b.indices,
-        _make_transpose_tensor(b))
+        not b.is_contiguous)
