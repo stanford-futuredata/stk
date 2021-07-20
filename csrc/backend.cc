@@ -228,28 +228,23 @@ void dsd(torch::Tensor shape,
 					  transpose_rhs,
 					  out));
 
+  std::vector<torch::Tensor> meta;
   if (transpose_lhs) {
     // Populate the transpose meta-data.
-    auto meta = transpose(shape, data, offsets, indices);
+    meta = transpose(shape, data, offsets, indices);
 
     // Set the data pointers.
     lhs.indices_t = meta[0].data_ptr();
     lhs.offsets_t = meta[1].data_ptr();
     lhs.block_offsets = meta[2].data_ptr();
-    CALL_CUDA(sputnik::block::MatmulEx(lhs,
-				       transpose_lhs,
-				       rhs,
-				       transpose_rhs,
-				       out,
-				       c10::cuda::getCurrentCUDAStream()));
-  } else {
-    CALL_CUDA(sputnik::block::Matmul(lhs,
+  }
+
+  CALL_CUDA(sputnik::block::MatmulEx(lhs,
 				     transpose_lhs,
 				     rhs,
 				     transpose_rhs,
 				     out,
 				     c10::cuda::getCurrentCUDAStream()));
-  }
 }
 
 void dds(torch::Tensor lhs_t,
@@ -279,28 +274,23 @@ void dds(torch::Tensor lhs_t,
 					  transpose_rhs,
 					  out));
 
+  std::vector<torch::Tensor> meta;
   if (!transpose_rhs) {
     // Populate the transpose meta-data.
-    auto meta = transpose(shape, data, offsets, indices);
+    meta = transpose(shape, data, offsets, indices);
 
     // Set the data pointers.
     rhs.indices_t = meta[0].data_ptr();
     rhs.offsets_t = meta[1].data_ptr();
     rhs.block_offsets = meta[2].data_ptr();
-    CALL_CUDA(sputnik::block::MatmulEx(lhs,
-				       transpose_lhs,
-				       rhs,
-				       transpose_rhs,
-				       out,
-				       c10::cuda::getCurrentCUDAStream()));
-  } else {
-    CALL_CUDA(sputnik::block::Matmul(lhs,
+  }
+
+  CALL_CUDA(sputnik::block::MatmulEx(lhs,
 				     transpose_lhs,
 				     rhs,
 				     transpose_rhs,
 				     out,
 				     c10::cuda::getCurrentCUDAStream()));
-  }
 }
 
 void sdd(torch::Tensor lhs_t,
@@ -369,28 +359,23 @@ void ssd(torch::Tensor lhs_shape,
 					  transpose_rhs,
 					  out));
 
+  std::vector<torch::Tensor> meta;
   if (transpose_lhs) {
     // Populate the transpose meta-data.
-    auto meta = transpose(lhs_shape, lhs_data, lhs_offsets, lhs_indices);
+    meta = transpose(lhs_shape, lhs_data, lhs_offsets, lhs_indices);
 
     // Set the data pointers.
     lhs.indices_t = meta[0].data_ptr();
     lhs.offsets_t = meta[1].data_ptr();
     lhs.block_offsets = meta[2].data_ptr();
-    CALL_CUDA(sputnik::block::MatmulEx(lhs,
-				       transpose_lhs,
-				       rhs,
-				       transpose_rhs,
-				       out,
-				       c10::cuda::getCurrentCUDAStream()));
-  } else {
-    CALL_CUDA(sputnik::block::Matmul(lhs,
+  }
+
+  CALL_CUDA(sputnik::block::MatmulEx(lhs,
 				     transpose_lhs,
 				     rhs,
 				     transpose_rhs,
 				     out,
 				     c10::cuda::getCurrentCUDAStream()));
-  }
 }
 
 void dss(torch::Tensor lhs_shape,
