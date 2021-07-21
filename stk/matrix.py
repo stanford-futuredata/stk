@@ -61,7 +61,7 @@ def _validate_matrix(shape, data, indices, offsets):
     if offsets.numel() != block_rows + 1:
         raise ValueError(
             "Expected one offset per block row plus one. "
-            "Got {offsets.numel()} offsets with {block_rows} block rows.")
+            f"Got {offsets.numel()} offsets with {block_rows} block rows.")
 
     is_cuda = data.is_cuda and indices.is_cuda and offsets.is_cuda
     is_cpu = not data.is_cuda and not indices.is_cuda and not offsets.is_cuda
@@ -121,14 +121,14 @@ class Matrix(object):
         return self
 
     def t(self):
-        self._transposed = not self._transposed
-        self._size = torch.Size((self._size[1], self._size[0]))
-        return self
+        out = Matrix(self.size(), self.data, self.indices, self.offsets)
+        out._transposed = not self._transposed
+        out._size = torch.Size((self._size[1], self._size[0]))
+        return out
 
     def contiguous(self):
         raise ValueError("Not yet implemented.")
 
-    @property
     def is_contiguous(self):
         return not self._transposed
 
@@ -174,9 +174,20 @@ class Matrix(object):
     def requires_grad(self):
         return self.data.requires_grad
 
+    def requires_grad_(self, x):
+        self.data.requires_grad_(x)
+        return self
+
     @property
     def grad(self):
-        return Matrix(self.shape,
-                      self.data.grad,
-                      self.indices,
-                      self.offsets)
+        # TODO(tgale): Make sure this mirrors torch.Tensor
+        # behavior in the case where we ask for the gradient
+        # of a non-contiguous tensor.
+        size = self.size()
+        if not self.is_contiguous():
+            size = torch.Size((size[1], size[0]))
+        out = Matrix(size,
+                     self.data.grad,
+                     self.indices,
+                     self.offsets)
+        return out if self.is_contiguous() else out.t()
