@@ -89,3 +89,9 @@ def to_sparse(x, blocking=1):
 @torch.no_grad()
 def ones_like(x):
     return Matrix(x.size(), torch.ones_like(x.data), x.indices, x.offsets)
+
+
+def sum(x):
+    assert isinstance(x, Matrix)
+    return x.data.sum()
+    

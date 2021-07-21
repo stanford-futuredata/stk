@@ -22,10 +22,12 @@ def _wrap(x):
         return (x,)
     return x
 
+
 def _is_transposed(x):
     return (not x.is_contiguous() and
             x.stride()[0] == 1 and
             x.stride()[1] == x.size()[0])
+
 
 def _call_helper(op, out, a, b, trans_a, trans_b):
     args = (_wrap(_transpose_helper(a, trans_a)) +
@@ -40,8 +42,12 @@ def _preprocess_inputs(lhs, rhs, dy):
         lhs = lhs.t()
     if isinstance(rhs, torch.Tensor) and _is_transposed(rhs):
         rhs = rhs.t()
-    if not dy.is_contiguous() and not _is_transposed(dy):
+    if (isinstance(dy, torch.Tensor) and
+        not dy.is_contiguous() and
+        not _is_transposed(dy)):
         dy = dy.contiguous()
+    if isinstance(dy, tuple) and not dy[1].is_contiguous():
+        dy = (dy[0], dy[1].contiguous()) + dy[2:]
     return lhs, rhs, dy
 
 
@@ -189,6 +195,7 @@ class SDD(torch.autograd.Function):
                 data,
                 offsets,
                 indices):
+        ctx.save_for_backward(lhs, rhs, shape, data, offsets, indices)
         out = torch.empty_like(data)
         backend.sdd(lhs,
                     rhs,
@@ -197,6 +204,33 @@ class SDD(torch.autograd.Function):
                     offsets,
                     indices)
         return out
+
+    @staticmethod
+    def backward(ctx, dy):
+        lhs, rhs, shape, data, offsets, indices = ctx.saved_tensors
+        dy = (shape, dy, offsets, indices)
+        trans_a = _is_transposed(lhs)
+        trans_b = _is_transposed(rhs)
+
+        dlhs = None
+        if ctx.needs_input_grad[0]:
+            op = dds if trans_a else dsd
+            dlhs = _lhs_gradient(op,
+                                 lhs,
+                                 rhs,
+                                 dy,
+                                 trans_a,
+                                 trans_b)
+        drhs = None
+        if ctx.needs_input_grad[1]:
+            op = dsd if trans_b else dds
+            drhs = _rhs_gradient(op,
+                                 lhs,
+                                 rhs,
+                                 dy,
+                                 trans_a,
+                                 trans_b)
+        return dlhs, drhs, None, None, None, None
 
 
 sdd = SDD.apply
