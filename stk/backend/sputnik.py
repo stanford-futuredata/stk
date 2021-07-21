@@ -135,6 +135,8 @@ class DDS(torch.autograd.Function):
                 offsets,
                 indices,
                 transpose_b):
+        ctx.save_for_backward(lhs, shape, data, offsets, indices)
+        ctx.transpose_b = transpose_b
         out = torch.empty((lhs.size()[0], shape[1]),
                           dtype=lhs.dtype,
                           device=lhs.device)
@@ -146,6 +148,32 @@ class DDS(torch.autograd.Function):
                     transpose_b,
                     out)
         return out
+
+    @staticmethod
+    def backward(ctx, dy):
+        lhs, shape, data, offsets, indices = ctx.saved_tensors
+        rhs = (shape, data, offsets, indices)
+        trans_a = _is_transposed(lhs)
+        trans_b = ctx.transpose_b
+
+        dlhs = None
+        if ctx.needs_input_grad[0]:
+            op = dsd if trans_a else dds
+            dlhs = _lhs_gradient(op,
+                                 lhs,
+                                 rhs,
+                                 dy,
+                                 trans_a,
+                                 trans_b)
+        ddata = None
+        if ctx.needs_input_grad[2]:
+            ddata = _rhs_gradient(sdd,
+                                  lhs,
+                                  rhs,
+                                  dy,
+                                  trans_a,
+                                  trans_b)
+        return dlhs, None, ddata, None, None, None
 
 
 dds = DDS.apply
