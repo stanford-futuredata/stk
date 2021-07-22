@@ -187,12 +187,16 @@ class LinearOpsTest(parameterized.TestCase):
         a_shape = (k, m) if trans_a else (m, k)
         a_dense, a = _dense_and_sparse(*a_shape, sparsity, blocking)
         b_shape = (n, k) if trans_b else (k, n)
-        b = _dense(*b_shape)
+        b, bcp = _dense_2x(*b_shape)
         _, topo = _dense_and_sparse(m, n, sparsity, blocking)
 
         # Execute the matmul.
         out = _sparse_out_with_transpose(stk.ops.ssd, a, b, topo, trans_a, trans_b)
-        expected_out = _sparse_out_with_transpose(_mmm, a_dense, b, topo, trans_a, trans_b)
+        expected_out = _sparse_out_with_transpose(_mmm, a_dense, bcp, topo, trans_a, trans_b)
+
+        # Compute the gradients w.r.t. the inputs.
+        expected_out.sum().backward()
+        stk.ops.sum(out).backward()
 
         # Validate the results.
         out = stk.ops.to_dense(out)
@@ -201,17 +205,37 @@ class LinearOpsTest(parameterized.TestCase):
         self.assertEqual(expected_out.size()[1], out.size()[1])
         self.assertTrue(torch.allclose(out, expected_out))
 
+        # LHS gradient.
+        grad = stk.ops.to_dense(a.grad)
+        expected_grad = _mask(a_dense.grad, a.grad)
+        self.assertEqual(grad.dim(), 2)
+        self.assertEqual(expected_grad.size()[0], grad.size()[0])
+        self.assertEqual(expected_grad.size()[1], grad.size()[1])
+        self.assertTrue(torch.allclose(grad, expected_grad))
+
+        # RHS gradient.
+        grad = b.grad
+        expected_grad = bcp.grad
+        self.assertEqual(grad.dim(), 2)
+        self.assertEqual(expected_grad.size()[0], grad.size()[0])
+        self.assertEqual(expected_grad.size()[1], grad.size()[1])
+        self.assertTrue(torch.allclose(grad, expected_grad))
+
     def testLinearOps_Sds(self, m, k, n, trans_a, trans_b, blocking, sparsity):
         # Construct the operands.
         a_shape = (k, m) if trans_a else (m, k)
-        a = _dense(*a_shape)
+        a, acp = _dense_2x(*a_shape)
         b_shape = (n, k) if trans_b else (k, n)
         b_dense, b = _dense_and_sparse(*b_shape, sparsity, blocking)
         _, topo = _dense_and_sparse(m, n, sparsity, blocking)
 
         # Execute the matmul.
         out = _sparse_out_with_transpose(stk.ops.sds, a, b, topo, trans_a, trans_b)
-        expected_out = _sparse_out_with_transpose(_mmm, a, b_dense, topo, trans_a, trans_b)
+        expected_out = _sparse_out_with_transpose(_mmm, acp, b_dense, topo, trans_a, trans_b)
+
+        # Compute the gradients w.r.t. the inputs.
+        expected_out.sum().backward()
+        stk.ops.sum(out).backward()
 
         # Validate the results.
         out = stk.ops.to_dense(out)
@@ -219,6 +243,22 @@ class LinearOpsTest(parameterized.TestCase):
         self.assertEqual(expected_out.size()[0], out.size()[0])
         self.assertEqual(expected_out.size()[1], out.size()[1])
         self.assertTrue(torch.allclose(out, expected_out))
+
+        # LHS gradient.
+        grad = a.grad
+        expected_grad = acp.grad
+        self.assertEqual(grad.dim(), 2)
+        self.assertEqual(expected_grad.size()[0], grad.size()[0])
+        self.assertEqual(expected_grad.size()[1], grad.size()[1])
+        self.assertTrue(torch.allclose(grad, expected_grad))
+
+        # RHS gradient.
+        grad = stk.ops.to_dense(b.grad)
+        expected_grad = _mask(b_dense.grad, b.grad)
+        self.assertEqual(grad.dim(), 2)
+        self.assertEqual(expected_grad.size()[0], grad.size()[0])
+        self.assertEqual(expected_grad.size()[1], grad.size()[1])
+        self.assertTrue(torch.allclose(grad, expected_grad))
 
     def testLinearOps_Dss(self, m, k, n, trans_a, trans_b, blocking, sparsity):
         # Construct the operands.
@@ -231,11 +271,31 @@ class LinearOpsTest(parameterized.TestCase):
         out = _with_transpose(stk.ops.dss, a, b, trans_a, trans_b)
         expected_out = _with_transpose(torch.mm, a_dense, b_dense, trans_a, trans_b)
 
+        # Compute the gradients w.r.t. the inputs.
+        expected_out.sum().backward()
+        out.sum().backward()
+
         # Validate the results.
         self.assertEqual(out.dim(), 2)
         self.assertEqual(expected_out.size()[0], out.size()[0])
         self.assertEqual(expected_out.size()[1], out.size()[1])
         self.assertTrue(torch.allclose(out, expected_out))
+
+        # LHS gradient.
+        grad = stk.ops.to_dense(a.grad)
+        expected_grad = _mask(a_dense.grad, a.grad)
+        self.assertEqual(grad.dim(), 2)
+        self.assertEqual(expected_grad.size()[0], grad.size()[0])
+        self.assertEqual(expected_grad.size()[1], grad.size()[1])
+        self.assertTrue(torch.allclose(grad, expected_grad))
+
+        # RHS gradient.
+        grad = stk.ops.to_dense(b.grad)
+        expected_grad = _mask(b_dense.grad, b.grad)
+        self.assertEqual(grad.dim(), 2)
+        self.assertEqual(expected_grad.size()[0], grad.size()[0])
+        self.assertEqual(expected_grad.size()[1], grad.size()[1])
+        self.assertTrue(torch.allclose(grad, expected_grad))
 
 
 if __name__ == '__main__':
