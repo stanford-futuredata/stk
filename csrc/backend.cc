@@ -366,6 +366,57 @@ void ssd(torch::Tensor lhs_shape,
 				     c10::cuda::getCurrentCUDAStream()));
 }
 
+void sds(torch::Tensor lhs_t,
+	 torch::Tensor rhs_shape,
+	 torch::Tensor rhs_data,
+	 torch::Tensor rhs_offsets,
+	 torch::Tensor rhs_indices,
+	 bool transpose_rhs,
+	 torch::Tensor out_shape,
+	 torch::Tensor out_data,
+	 torch::Tensor out_offsets,
+	 torch::Tensor out_indices) {
+  // Convert the arguments to sputnik types.
+  auto lhs = as_matrix(lhs_t);
+  bool transpose_lhs = is_transposed(lhs_t);
+
+  validate_shape(rhs_shape);
+  standardize_shape(rhs_shape, transpose_rhs);
+  auto rhs = as_block_matrix(rhs_shape,
+			     rhs_data,
+			     rhs_offsets,
+			     rhs_indices);
+  auto out = as_block_matrix(out_shape,
+			     out_data,
+			     out_offsets,
+			     out_indices);
+
+  // Validate the problem configuration.
+  TORCH_CHECK(sputnik::block::ValidMatmul(lhs,
+					  transpose_lhs,
+					  rhs,
+					  transpose_rhs,
+					  out));
+
+  std::vector<torch::Tensor> meta;
+  if (!transpose_rhs) {
+    // Populate the transpose meta-data.
+    meta = transpose(rhs_shape, rhs_data, rhs_offsets, rhs_indices);
+
+    // Set the data pointers.
+    rhs.indices_t = meta[0].data_ptr();
+    rhs.offsets_t = meta[1].data_ptr();
+    rhs.block_offsets = meta[2].data_ptr();
+  }
+
+  CALL_CUDA(sputnik::block::MatmulEx(lhs,
+				     transpose_lhs,
+				     rhs,
+				     transpose_rhs,
+				     out,
+				     c10::cuda::getCurrentCUDAStream()));
+}
+
 void dss(torch::Tensor lhs_shape,
 	 torch::Tensor lhs_data,
 	 torch::Tensor lhs_offsets,
@@ -439,6 +490,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("dsd", &dsd, "dense = op(sparse) x op(dense)");
   m.def("dds", &dds, "dense = op(dense) x op(sparse)");
   m.def("sdd", &sdd, "sparse = op(dense) x op(dense)");
-  m.def("ssd", &ssd, "sparse = op(dense) x op(sparse)");
+  m.def("ssd", &ssd, "sparse = op(sparse) x op(dense)");
+  m.def("sds", &sds, "sparse = op(dense) x op(sparse)");
   m.def("dss", &dss, "dense = op(sparse) x op(sparse)");
 }

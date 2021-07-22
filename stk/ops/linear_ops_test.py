@@ -201,6 +201,25 @@ class LinearOpsTest(parameterized.TestCase):
         self.assertEqual(expected_out.size()[1], out.size()[1])
         self.assertTrue(torch.allclose(out, expected_out))
 
+    def testLinearOps_Sds(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+        # Construct the operands.
+        a_shape = (k, m) if trans_a else (m, k)
+        a = _dense(*a_shape)
+        b_shape = (n, k) if trans_b else (k, n)
+        b_dense, b = _dense_and_sparse(*b_shape, sparsity, blocking)
+        _, topo = _dense_and_sparse(m, n, sparsity, blocking)
+
+        # Execute the matmul.
+        out = _sparse_out_with_transpose(stk.ops.sds, a, b, topo, trans_a, trans_b)
+        expected_out = _sparse_out_with_transpose(_mmm, a, b_dense, topo, trans_a, trans_b)
+
+        # Validate the results.
+        out = stk.ops.to_dense(out)
+        self.assertEqual(out.dim(), 2)
+        self.assertEqual(expected_out.size()[0], out.size()[0])
+        self.assertEqual(expected_out.size()[1], out.size()[1])
+        self.assertTrue(torch.allclose(out, expected_out))
+
     def testLinearOps_Dss(self, m, k, n, trans_a, trans_b, blocking, sparsity):
         # Construct the operands.
         a_shape = (k, m) if trans_a else (m, k)

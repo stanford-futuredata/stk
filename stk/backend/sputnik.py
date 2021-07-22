@@ -266,6 +266,37 @@ class SSD(torch.autograd.Function):
 
 ssd = SSD.apply
 
+class SDS(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx,
+                lhs,
+                rhs_shape,
+                rhs_data,
+                rhs_offsets,
+                rhs_indices,
+                transpose_b,
+                shape,
+                data,
+                offsets,
+                indices):
+        out = torch.empty_like(data)
+        backend.sds(lhs,
+                    rhs_shape,
+                    rhs_data,
+                    rhs_offsets,
+                    rhs_indices,
+                    transpose_b,
+                    shape,
+                    out,
+                    offsets,
+                    indices)
+        return out
+
+
+sds = SDS.apply
+
+
 class DSS(torch.autograd.Function):
 
     @staticmethod

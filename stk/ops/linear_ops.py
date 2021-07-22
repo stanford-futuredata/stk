@@ -56,6 +56,21 @@ def ssd(a, b, topo):
     return Matrix(topo.size(), out, topo.indices, topo.offsets)
 
 
+def sds(a, b, topo):
+    assert isinstance(a, torch.Tensor)
+    assert isinstance(b, Matrix)
+    assert isinstance(topo, Matrix)
+    assert topo.is_contiguous()
+    out = sputnik.sds(
+        a,
+        _make_shape_tensor(b),
+        b.data, b.offsets, b.indices,
+        not b.is_contiguous(),
+        _make_shape_tensor(topo),
+        topo.data, topo.offsets, topo.indices)
+    return Matrix(topo.size(), out, topo.indices, topo.offsets)
+
+
 def dss(a, b):
     assert isinstance(a, Matrix)
     assert isinstance(b, Matrix)
