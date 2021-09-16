@@ -16,7 +16,7 @@ def _row_indices(x):
 @torch.no_grad()
 def _expand_for_blocking(idxs, blocking):
     # Duplicate for block column dimension.
-    idxs = torch.tile(torch.reshape(idxs, [idxs.size()[0], 1, 2]), (1, blocking, 1))
+    idxs = torch.reshape(idxs, [idxs.size()[0], 1, 2]).repeat(1, blocking, 1)
 
     # Update the column indices.
     idxs[:, :, 1] *= blocking
@@ -24,7 +24,7 @@ def _expand_for_blocking(idxs, blocking):
 
     # Duplicate for block row dimension.
     idxs = torch.reshape(idxs, [idxs.size()[0], 1, blocking, 2])
-    idxs = torch.tile(idxs, (1, blocking, 1, 1))
+    idxs = idxs.repeat(1, blocking, 1, 1)
 
     # Update the row indices.
     idxs[:, :, :, 0] *= blocking
