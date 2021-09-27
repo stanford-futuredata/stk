@@ -16,14 +16,21 @@ def _validate_matrix(shape, data, indices, offsets):
     if data.dim() == 1:
         data = torch.reshape(data, [data.numel(), 1, 1])
 
+    # Blocks should be square.
+    if data.shape[-2] != data.shape[-1]:
+        raise ValueError(
+            "Expected square blocking in data. "
+            f"Got block shape {[data.shape[-2], data.shape[-1]]}")
+
+    # Flatten batch dimensions on data - original shape preserved
+    # in shape argument.
+    block_size = data.shape[-1]
+    data = data.view([-1, block_size, block_size])
+
     if data.dim() != 3:
         raise ValueError(
             "Expected 3D shape for data (nnz, block, block). "
             f"Got shape {data.dim()}D shape.")
-    if data.shape[1] != data.shape[2]:
-        raise ValueError(
-            "Expected square blocking in data. "
-            f"Got block shape {[data.shape[1], data.shape[2]]}")
 
     block_size = data.shape[1]
     if shape[-2] % block_size != 0 or shape[-1] % block_size != 0:
