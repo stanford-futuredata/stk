@@ -10,13 +10,6 @@ import torch
 ### Validation helpers.
 ##
 
-def _validate_shape(shape):
-    shape = torch.Size(shape)
-    if len(shape) != 2:
-        raise ValueError(
-            f"shape must have 2 values. Got {len(shape)} values.")
-    return shape
-
 
 def _validate_matrix(shape, data, indices, offsets):
     # Data should be [nnz, block_size, block_size]
@@ -33,16 +26,16 @@ def _validate_matrix(shape, data, indices, offsets):
             f"Got block shape {[data.shape[1], data.shape[2]]}")
 
     block_size = data.shape[1]
-    if shape[0] % block_size != 0 or shape[1] % block_size != 0:
+    if shape[-2] % block_size != 0 or shape[-1] % block_size != 0:
         raise ValueError(
             "Matrix shape must be dividible by blocking. "
-            f"Got shape {[shape[0], shape[1]]} with "
+            f"Got shape {shape} with "
             f"{[block_size, block_size]} blocking.")
 
-    if shape[0] * shape[1] < data.numel():
+    if np.prod(shape) < data.numel():
         raise ValueError(
             "Invalid matrix. Number of nonzeros exceeds matrix capacity "
-            f"({data.numel()} v. {shape[0] * shape[1]})")
+            f"({data.numel()} v. {np.prod(shape)})")
 
     if indices.dim() != 1:
         raise ValueError(
@@ -57,7 +50,7 @@ def _validate_matrix(shape, data, indices, offsets):
             "Expected 1 index per nonzero block. "
             f"Got {indices.numel()} indices for {data.shape[0]} blocks")
 
-    block_rows = shape[0] / block_size
+    block_rows = shape[-2] / block_size
     if offsets.numel() != block_rows + 1:
         raise ValueError(
             "Expected one offset per block row plus one. "
@@ -96,7 +89,7 @@ class Matrix(object):
                  data,
                  indices,
                  offsets):
-        self._size = _validate_shape(size)
+        self._size = size
         self._indices = indices
         self._offsets = offsets
 
@@ -121,6 +114,7 @@ class Matrix(object):
         return self
 
     def t(self):
+        assert len(self.size()) == 2
         out = Matrix(self.size(), self.data, self.indices, self.offsets)
         out._transposed = not self._transposed
         out._size = torch.Size((self._size[1], self._size[0]))
