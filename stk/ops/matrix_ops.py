@@ -5,8 +5,8 @@ import numpy as np
 
 @torch.no_grad()
 def _row_indices(x):
-    nnz = x.nnz / x.blocking ** 2
-    offsets = x.offsets / x.blocking **2
+    nnz = x.nnz // x.blocking ** 2
+    offsets = x.offsets // x.blocking ** 2
     out = np.digitize(np.arange(nnz), bins=offsets.cpu().numpy()) - 1
     return torch.from_numpy(out.astype(np.int32)).to(offsets.device)
 
@@ -38,12 +38,13 @@ def _expand_for_blocking(idxs, blocking):
 def to_dense(x):
     assert isinstance(x, Matrix)
 
+    shape = (np.prod(x.shape[:-1]), x.shape[-1])
     row_idxs = _row_indices(x)
-    col_idxs = x.indices / x.blocking
+    col_idxs = x.indices // x.blocking
     indices = _expand_for_blocking(torch.stack([row_idxs, col_idxs], dim=1), x.blocking)
-    indices = (indices[:, 0] * x.size()[1] + indices[:, 1]).type(torch.int64)
+    indices = (indices[:, 0] * shape[1] + indices[:, 1]).type(torch.int64)
 
-    out = torch.zeros(x.size()[0] * x.size()[1], dtype=x.dtype, device=x.device)
+    out = torch.zeros(shape[0] * shape[1], dtype=x.dtype, device=x.device)
     out.scatter_(0, indices, x.data.flatten())
     return out.reshape(x.size())
 
@@ -94,4 +95,3 @@ def ones_like(x):
 def sum(x):
     assert isinstance(x, Matrix)
     return x.data.sum()
-    

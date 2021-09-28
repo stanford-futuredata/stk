@@ -46,7 +46,7 @@ class RandomOpsTest(parameterized.TestCase):
                 torch.eq(mask, 1))))
 
     def testRandomOps_SparseMask(self, rows, cols, sparsity, blocking):
-        mask = stk.random.sparse_mask(
+        mask = stk.random.mask(
             rows, cols, sparsity, blocking)
 
         # Validate the matrix.

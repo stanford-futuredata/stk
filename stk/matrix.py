@@ -58,7 +58,7 @@ def _validate_matrix(shape, data, indices, offsets):
             "Expected 1 index per nonzero block. "
             f"Got {indices.numel()} indices for {data.shape[0]} blocks")
 
-    block_rows = shape[-2] / block_size
+    block_rows = np.prod(shape[:-1]) / block_size
     if offsets.numel() != block_rows + 1:
         raise ValueError(
             "Expected one offset per block row plus one. "
@@ -120,6 +120,9 @@ class Matrix(object):
         self._offsets = self._offsets.to(device)
         return self
 
+    def cuda(self):
+        return self.to(torch.cuda.current_device())
+
     def t(self):
         if self.dim() != 2:
             raise ValueError(
@@ -146,6 +149,10 @@ class Matrix(object):
 
     def size(self):
         return self._size
+
+    @property
+    def shape(self):
+        return self.size()
 
     def dim(self):
         return len(self._size)
@@ -181,6 +188,18 @@ class Matrix(object):
     def requires_grad_(self, x):
         self.data.requires_grad_(x)
         return self
+
+    def view(self, *shape):
+        assert self.is_contiguous()
+        if shape[-1] != self.size()[-1]:
+            raise ValueError(
+                "Can't change view on compressed dimension. "
+                f"{self.size()[-1]} v. {shape[-1]}.")
+        if np.prod(shape) != np.prod(self.size()):
+            raise ValueError(
+                "Mismatch in numel of Matrix and new shape. "
+                f"{np.prod(self.size())} v. {np.prod(shape)}")
+        return Matrix(shape, self.data, self.indices, self.offsets)
 
     @property
     def grad(self):

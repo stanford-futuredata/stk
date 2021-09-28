@@ -23,6 +23,14 @@ def dense_mask(rows, cols, sparsity, blocking=1):
 
 
 @torch.no_grad()
-def sparse_mask(m, n, sparsity, blocking=1):
-    mask = dense_mask(m, n, sparsity, blocking).type(torch.float16)
-    return matrix_ops.to_sparse(mask, blocking=blocking)
+def mask(m, n, sparsity, blocking=1):
+    out = dense_mask(m, n, sparsity, blocking).type(torch.float16)
+    return matrix_ops.to_sparse(out, blocking=blocking)
+
+  
+@torch.no_grad()
+def randn(shape, sparsity, blocking=1):
+  shape_2d = (np.prod(shape[:-1]), shape[-1])
+  out = mask(*shape_2d, sparsity, blocking)
+  out.data.copy_(torch.randn(*out.data.shape))
+  return out.view(*shape)
