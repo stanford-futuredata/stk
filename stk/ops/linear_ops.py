@@ -2,8 +2,10 @@ from stk.backend import sputnik
 from stk.matrix import Matrix
 import torch
 
-
+# TODO(tgale): Handle batched sparse matrices in
+# a clean way.
 def _make_shape_tensor(x):
+    assert x.dim() == 2
     return torch.tensor(
         x.size(),
         dtype=torch.int32,

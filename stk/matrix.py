@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 # 2. Add heavyweight (data) validation helper.
@@ -106,7 +107,6 @@ class Matrix(object):
 
 
     def validate(self):
-        _validate_shape(self._size)
         _validate_matrix(self._size, self._data, self._indices, self._offsets)
 
         # TODO(tgale): Add heavyweight data validation.
@@ -121,7 +121,10 @@ class Matrix(object):
         return self
 
     def t(self):
-        assert len(self.size()) == 2
+        if self.dim() != 2:
+            raise ValueError(
+                "t() expects a tensor with <= 2 dimensions, "
+                f"but self is {self.dim()}D.")
         out = Matrix(self.size(), self.data, self.indices, self.offsets)
         out._transposed = not self._transposed
         out._size = torch.Size((self._size[1], self._size[0]))
