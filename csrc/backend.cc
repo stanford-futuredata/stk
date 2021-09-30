@@ -134,7 +134,8 @@ std::vector<torch::Tensor> transpose(torch::Tensor shape,
   TORCH_CHECK(kBlockSize == 128);
   TORCH_CHECK(access_metadata(shape, 0) <= (128 * 128));
   torch::Tensor row_idxs = row_indices(shape, data, offsets, indices);
-  torch::Tensor sort_indices = indices + torch::divide(row_idxs, kBlockSize, "trunc");
+  // Can use torch::divide(row_idxs, kBlockSize, "trunc") in 1.9+
+  torch::Tensor sort_indices = indices + row_idxs / kBlockSize;
   torch::Tensor gather_indices = sort_indices.argsort();
   torch::Tensor indices_t = row_idxs.gather(0, gather_indices);
 
