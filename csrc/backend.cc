@@ -132,9 +132,9 @@ std::vector<torch::Tensor> transpose(torch::Tensor shape,
   // TODO(tgale): Replace the hacky offset with a stable sort
   // when it's available.
   TORCH_CHECK(kBlockSize == 128);
-  TORCH_CHECK(access_metadata(shape, 0) <= (128*128));
+  TORCH_CHECK(access_metadata(shape, 0) <= (128 * 128));
   torch::Tensor row_idxs = row_indices(shape, data, offsets, indices);
-  torch::Tensor sort_indices = indices + row_idxs / kBlockSize;
+  torch::Tensor sort_indices = indices + torch::divide(row_idxs, kBlockSize, "trunc");
   torch::Tensor gather_indices = sort_indices.argsort();
   torch::Tensor indices_t = row_idxs.gather(0, gather_indices);
 
@@ -156,8 +156,7 @@ std::vector<torch::Tensor> transpose(torch::Tensor shape,
   // Calculate the transposed matrix's offsets.
   torch::Tensor nnz_per_column = indices.histc(kBlockCols, 0, kCols);
   torch::Tensor zero = torch::zeros(1, options);
-  torch::Tensor offsets_t = at::cat({zero, nnz_per_column.cumsum(0) * kValuesPerBlock});
-  offsets_t = offsets_t.to(options);
+  torch::Tensor offsets_t = at::cat({zero, nnz_per_column.cumsum(0, torch::kInt32) * kValuesPerBlock});
   return {indices_t, offsets_t, block_offsets_t};
 }
 

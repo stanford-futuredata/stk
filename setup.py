@@ -10,7 +10,7 @@ ext_modules = [
         include_dirs = ["/usr/local/sputnik/include"],
         libraries = ["sputnik"],
         library_dirs = ["/usr/local/sputnik/lib"],
-        extra_compile_ars={"cxx": ["-fopenmp"]})
+        extra_compile_args={"cxx": ["-fopenmp"]})
 ]
 
 # TODO(tgale): Update this to install the python sources.

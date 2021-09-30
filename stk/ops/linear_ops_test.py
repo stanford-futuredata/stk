@@ -20,8 +20,7 @@ _LINEAR_OP_TESTS = (
     (2048, 1024, 512, True, False, 128, 0.8),
     (128, 128, 128, True, True, 128, 0.0),
     (256, 256, 256, True, True, 128, 0.5),
-    (2048, 1024, 512, True, True, 128, 0.8),
-)
+    (2048, 1024, 512, True, True, 128, 0.8))
 
 
 def _dense_and_sparse(rows, cols, sparsity, blocking):

@@ -123,6 +123,13 @@ class Matrix(object):
     def cuda(self):
         return self.to(torch.cuda.current_device())
 
+    def clone(self):
+        return Matrix(
+            self.size(),
+            self.data.clone(),
+            self.indices.clone(),
+            self.offsets.clone())
+
     def t(self):
         if self.dim() != 2:
             raise ValueError(
