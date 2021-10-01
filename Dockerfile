@@ -15,16 +15,15 @@ RUN apt-get install -y \
 ENV PATH="/opt/nvidia/nsight-compute/2020.3.1/:${PATH}"
 
 # Install CMake.
-RUN apt-get install -y software-properties-common && \
-    apt-get update && \
-    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \
-    apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main' && \
-    apt-get update && apt-get install -y cmake
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.21.3/cmake-3.21.3-linux-x86_64.sh
+RUN mkdir /usr/local/cmake
+RUN sh cmake-3.21.3-linux-x86_64.sh --skip-license --prefix=/usr/local/cmake
+ENV PATH="/usr/local/cmake/bin:${PATH}"
 
 # Install Sputnik.
 RUN mkdir /mount
 WORKDIR /mount
-RUN git clone --recursive https://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@github.com/tgale96/sputnik.git && \
+RUN git clone --recursive https://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@github.com/tgale96/sputnik.git && \
 	mkdir sputnik/build
 
 # HACK: Send a PR to fix this include.
@@ -46,6 +45,10 @@ RUN pip3 install torch==1.9.0+cu111 \
 RUN pip3 install absl-py
 ENV PYTHONPATH="/mount/stk:${PYTHONPATH}"
 ENV LD_LIBRARY_PATH="/usr/local/sputnik/lib:${LD_LIBRARY_PATH}"
+
+# Aliases for py3.
+RUN echo 'alias python="python3"' >> ~/.bashrc
+RUN echo 'alias pip="pip3"' >> ~/.bashrc
 
 # Set the working directory.
 WORKDIR /mount/stk

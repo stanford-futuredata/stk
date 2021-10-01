@@ -1,3 +1,6 @@
 #!/bin/bash
 
-sudo docker run -it --runtime=nvidia -v /lfs/1/tgale/:/mount stk-dev
+# Get the repo location. Assumes that this
+# script is executed from inside the repo.
+BASEDIR=`cd .. && pwd`
+sudo docker run -it --runtime=nvidia -v ${BASEDIR}:/mount stk-dev
