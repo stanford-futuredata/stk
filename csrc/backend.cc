@@ -117,6 +117,8 @@ torch::Tensor row_indices(torch::Tensor shape,
 /// Transpose helper.
 //
 
+// TODO(tgale): Replace sort/histc with our faster operations.
+// Will need to move those from blockparty into this repo.
 std::vector<torch::Tensor> transpose(torch::Tensor shape,
 				     torch::Tensor data,
 				     torch::Tensor offsets,
@@ -131,6 +133,8 @@ std::vector<torch::Tensor> transpose(torch::Tensor shape,
   //
   // TODO(tgale): Replace the hacky offset with a stable sort
   // when it's available.
+  //
+  // TODO(tgale): Get rid of hack. Don't need stable.
   TORCH_CHECK(kBlockSize == 128);
   TORCH_CHECK(access_metadata(shape, 0) <= (128 * 128));
   torch::Tensor row_idxs = row_indices(shape, data, offsets, indices);
@@ -148,13 +152,16 @@ std::vector<torch::Tensor> transpose(torch::Tensor shape,
     .dtype(torch::kInt32)
     .device(data.device());
 
+  // TODO(tgale): Fix me.
   torch::Tensor block_offsets = torch::linspace(0,
 						(kNonzeros - 1) * kBytesPerBlock,
 						kNonzeros,
 						options);
   torch::Tensor block_offsets_t = block_offsets.gather(0, gather_indices);
-
+  
   // Calculate the transposed matrix's offsets.
+  //
+  // TODO(tgale): Remove scaling by kValuesPerBlock
   torch::Tensor nnz_per_column = indices.histc(kBlockCols, 0, kCols);
   torch::Tensor zero = torch::zeros(1, options);
   torch::Tensor offsets_t = at::cat({zero, nnz_per_column.cumsum(0, torch::kInt32) * kValuesPerBlock});

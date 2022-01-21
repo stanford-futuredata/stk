@@ -36,6 +36,7 @@ RUN cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TEST=OFF -DBUILD_BENCHMARK=OFF \
 # Install PyTorch.
 #
 # TODO(tgale): Update this to 11.3 as soon as possible.
+RUN pip3 install --upgrade pip
 RUN pip3 install torch==1.9.0+cu111 \
     	  torchvision==0.10.0+cu111 \
      	  torchaudio==0.9.0 \

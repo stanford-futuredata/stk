@@ -6,7 +6,7 @@ import numpy as np
 @torch.no_grad()
 def _row_indices(x):
     nnz = x.nnz // x.blocking ** 2
-    offsets = x.offsets // x.blocking ** 2
+    offsets = x.offsets
     out = np.digitize(np.arange(nnz), bins=offsets.cpu().numpy()) - 1
     return torch.from_numpy(out.astype(np.int32)).to(offsets.device)
 
@@ -40,7 +40,7 @@ def to_dense(x):
 
     shape = (np.prod(x.shape[:-1]), x.shape[-1])
     row_idxs = _row_indices(x)
-    col_idxs = x.indices // x.blocking
+    col_idxs = x.indices
     indices = _expand_for_blocking(torch.stack([row_idxs, col_idxs], dim=1), x.blocking)
     indices = (indices[:, 0] * shape[1] + indices[:, 1]).type(torch.int64)
 
@@ -70,11 +70,9 @@ def to_sparse(x, blocking=1):
     row_nnzs = torch.sum(m, dim=1).type(torch.int32)
     zeros = torch.zeros((1,), dtype=row_nnzs.dtype, device=row_nnzs.device)
     offsets = torch.cat([zeros, torch.cumsum(row_nnzs, dim=0)])
-    offsets *= blocking * blocking
     offsets = offsets.type(torch.int32)
 
     indices = torch.nonzero(m)[:, 1].type(torch.int16)
-    indices *= blocking
 
     # Nonzero indices in the dense matrix.
     nonzero_indices = torch.nonzero(m)
