@@ -88,7 +88,7 @@ sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
   return sputnik::block::BlockMatrix(access_metadata(shape, 0),
 				     access_metadata(shape, 1),
 				     sputnik::block::AsBlockSize(data.size(1)),
-				     indices.numel(),
+				     data.numel(),
 				     data.data_ptr(),
 				     offsets.data_ptr(),
 				     indices.data_ptr());
@@ -130,41 +130,22 @@ std::vector<torch::Tensor> transpose(torch::Tensor shape,
 
   // Sort row indices by column indices to get the transposed
   // matrix's column indices.
-  //
-  // TODO(tgale): Replace the hacky offset with a stable sort
-  // when it's available.
-  //
-  // TODO(tgale): Get rid of hack. Don't need stable.
-  TORCH_CHECK(kBlockSize == 128);
-  TORCH_CHECK(access_metadata(shape, 0) <= (128 * 128));
+  torch::Tensor gather_indices = indices.argsort();
   torch::Tensor row_idxs = row_indices(shape, data, offsets, indices);
-  // Can use torch::divide(row_idxs, kBlockSize, "trunc") in 1.9+
-  torch::Tensor sort_indices = indices + row_idxs / kBlockSize;
-  torch::Tensor gather_indices = sort_indices.argsort();
   torch::Tensor indices_t = row_idxs.gather(0, gather_indices);
 
   // Sort block offsets by column indices to get the transposed
   // matrix's block locations for each block row.
-  const int kValuesPerBlock = kBlockSize * kBlockSize;
-  const int kBytesPerBlock = kValuesPerBlock * sizeof(sputnik::half);
-
   auto options = torch::TensorOptions()
     .dtype(torch::kInt32)
     .device(data.device());
-
-  // TODO(tgale): Fix me.
-  torch::Tensor block_offsets = torch::linspace(0,
-						(kNonzeros - 1) * kBytesPerBlock,
-						kNonzeros,
-						options);
+  torch::Tensor block_offsets = torch::arange(0, kNonzeros, options);
   torch::Tensor block_offsets_t = block_offsets.gather(0, gather_indices);
-  
+
   // Calculate the transposed matrix's offsets.
-  //
-  // TODO(tgale): Remove scaling by kValuesPerBlock
-  torch::Tensor nnz_per_column = indices.histc(kBlockCols, 0, kCols);
+  torch::Tensor nnz_per_column = indices.histc(kBlockCols, 0, kBlockCols);
   torch::Tensor zero = torch::zeros(1, options);
-  torch::Tensor offsets_t = at::cat({zero, nnz_per_column.cumsum(0, torch::kInt32) * kValuesPerBlock});
+  torch::Tensor offsets_t = at::cat({zero, nnz_per_column.cumsum(0, torch::kInt32)});
   return {indices_t, offsets_t, block_offsets_t};
 }
 
