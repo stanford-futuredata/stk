@@ -12,7 +12,7 @@ import torch
 ##
 
 
-def _validate_matrix(shape, data, indices, offsets):
+def _validate_matrix(shape, data, row_indices, column_indices, offsets):
     # Data should be [nnz, block_size, block_size]
     if data.dim() == 1:
         data = torch.reshape(data, [data.numel(), 1, 1])
@@ -45,18 +45,27 @@ def _validate_matrix(shape, data, indices, offsets):
             "Invalid matrix. Number of nonzeros exceeds matrix capacity "
             f"({data.numel()} v. {np.prod(shape)})")
 
-    if indices.dim() != 1:
+    if row_indices.dim() != 1:
         raise ValueError(
-            f"Expected 1D indices. Got {indices.dim()}D indices.")
+            f"Expected 1D row_indices. Got {row_indices.dim()}D row_indices.")
+
+    if column_indices.dim() != 1:
+        raise ValueError(
+            f"Expected 1D column_indices. Got {column_indices.dim()}D column_indices.")
 
     if offsets.dim() != 1:
         raise ValueError(
             f"Expected 1D offsets. Got {offsets.dim()}D offsets.")
 
-    if indices.numel() != data.shape[0]:
+    if row_indices.numel() != data.shape[0]:
         raise ValueError(
             "Expected 1 index per nonzero block. "
-            f"Got {indices.numel()} indices for {data.shape[0]} blocks")
+            f"Got {row_indices.numel()} row_indices for {data.shape[0]} blocks")
+
+    if column_indices.numel() != data.shape[0]:
+        raise ValueError(
+            "Expected 1 index per nonzero block. "
+            f"Got {column_indices.numel()} column_indices for {data.shape[0]} blocks")
 
     block_rows = np.prod(shape[:-1]) / block_size
     if offsets.numel() != block_rows + 1:
@@ -64,20 +73,30 @@ def _validate_matrix(shape, data, indices, offsets):
             "Expected one offset per block row plus one. "
             f"Got {offsets.numel()} offsets with {block_rows} block rows.")
 
-    is_cuda = data.is_cuda and indices.is_cuda and offsets.is_cuda
-    is_cpu = not data.is_cuda and not indices.is_cuda and not offsets.is_cuda
+    is_cuda = (data.is_cuda and
+               row_indices.is_cuda and
+               column_indices.is_cuda and
+               offsets.is_cuda)
+    is_cpu = (not data.is_cuda and
+              not row_indices.is_cuda and
+              not column_indices.is_cuda and
+              not offsets.is_cuda)
     if not (is_cuda or is_cpu):
         raise ValueError(
             "Expected data & meta-data on common device. "
-            f"Got data on {data.device}, indices on {indices.device} "
-            f"and offsets on {offsets.device}.")
+            f"Got data on {data.device}, row_indices on {row_indices.device} "
+            f"column_indices on {column_indices.device} and "
+            f"offsets on {offsets.device}.")
 
     if data.dtype != torch.float16:
         raise ValueError(
             f"Expected float16 data. Got {data.dtype} data.")
-    if indices.dtype != torch.int16:
+    if row_indices.dtype != torch.int16:
         raise ValueError(
-            f"Expected int16 indices. Got {indices.dtype} indices.")
+            f"Expected int16 row_indices. Got {row_indices.dtype} row_indices.")
+    if column_indices.dtype != torch.int16:
+        raise ValueError(
+            f"Expected int16 column_indices. Got {column_indices.dtype} column_indices.")
     if offsets.dtype != torch.int32:
         raise ValueError(
             f"Expected int32 offsets. Got {offsets.dtype} offsets.")
@@ -95,19 +114,29 @@ class Matrix(object):
     def __init__(self,
                  size,
                  data,
-                 indices,
+                 row_indices,
+                 column_indices,
                  offsets):
         self._size = size
-        self._indices = indices
+        self._row_indices = row_indices
+        self._column_indices = column_indices
         self._offsets = offsets
 
         # Lightweight validation.
-        self._data = _validate_matrix(self._size, data, self._indices, self._offsets)
+        self._data = _validate_matrix(self._size,
+                                      data,
+                                      self._row_indices,
+                                      self._column_indices,
+                                      self._offsets)
         self._transposed = False
 
 
     def validate(self):
-        _validate_matrix(self._size, self._data, self._indices, self._offsets)
+        _validate_matrix(self._size,
+                         self._data,
+                         self._row_indices,
+                         self._column_indices,
+                         self._offsets)
 
         # TODO(tgale): Add heavyweight data validation.
 
@@ -116,7 +145,8 @@ class Matrix(object):
         # need to set the appropriate meta-data type for
         # the given floating-point type.
         self._data = self._data.to(device)
-        self._indices = self._indices.to(device)
+        self._row_indices = self._row_indices.to(device)
+        self._column_indices = self._column_indices.to(device)
         self._offsets = self._offsets.to(device)
         return self
 
@@ -127,7 +157,8 @@ class Matrix(object):
         return Matrix(
             self.size(),
             self.data.clone(),
-            self.indices.clone(),
+            self.row_indices.clone(),
+            self.column_indices.clone(),
             self.offsets.clone())
 
     def t(self):
@@ -135,7 +166,11 @@ class Matrix(object):
             raise ValueError(
                 "t() expects a tensor with <= 2 dimensions, "
                 f"but self is {self.dim()}D.")
-        out = Matrix(self.size(), self.data, self.indices, self.offsets)
+        out = Matrix(self.size(),
+                     self.data,
+                     self.row_indices,
+                     self.column_indices,
+                     self.offsets)
         out._transposed = not self._transposed
         out._size = torch.Size((self._size[1], self._size[0]))
         return out
@@ -169,8 +204,12 @@ class Matrix(object):
         return self._data
 
     @property
-    def indices(self):
-        return self._indices
+    def row_indices(self):
+        return self._row_indices
+
+    @property
+    def column_indices(self):
+        return self._column_indices
 
     @property
     def offsets(self):
@@ -206,7 +245,11 @@ class Matrix(object):
             raise ValueError(
                 "Mismatch in numel of Matrix and new shape. "
                 f"{np.prod(self.size())} v. {np.prod(shape)}")
-        return Matrix(shape, self.data, self.indices, self.offsets)
+        return Matrix(shape,
+                      self.data,
+                      self.row_indices,
+                      self.column_indices,
+                      self.offsets)
 
     @property
     def grad(self):
@@ -218,6 +261,7 @@ class Matrix(object):
             size = torch.Size((size[1], size[0]))
         out = Matrix(size,
                      self.data.grad,
-                     self.indices,
+                     self.row_indices,
+                     self.column_indices,
                      self.offsets)
         return out if self.is_contiguous() else out.t()

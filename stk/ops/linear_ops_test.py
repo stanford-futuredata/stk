@@ -7,7 +7,7 @@ import torch
 
 
 def allclose(x, y, pct=0.25):
-    mask = torch.isclose(x, y)
+    mask = torch.isclose(x, y, rtol=5e-2)
     pct_diff = (mask.numel() - mask.sum()) / mask.numel() * 100
     if pct_diff > pct:
         print("{:.2f}% of values not close.".format(pct_diff))

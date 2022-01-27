@@ -1,14 +1,24 @@
+from stk.backend import sputnik
 from stk.matrix import Matrix
 import torch
 import numpy as np
 
 
+def _make_shape_tensor(x):
+    assert x.dim() == 2
+    return torch.tensor(
+        x.size(),
+        dtype=torch.int32,
+        device=torch.device("cpu"))
+
+
 @torch.no_grad()
-def _row_indices(x):
-    nnz = x.nnz // x.blocking ** 2
-    offsets = x.offsets
-    out = np.digitize(np.arange(nnz), bins=offsets.cpu().numpy()) - 1
-    return torch.from_numpy(out.astype(np.int32)).to(offsets.device)
+def row_indices(x):
+    assert isinstance(x, Matrix)
+    return sputnik.row_indices(_make_tensor_shape(x),
+                               x.data,
+                               x.offsets,
+                               x.column_indices)
 
 
 # TODO(tgale): Replace this helper with a custom kernel. This operation
@@ -39,8 +49,8 @@ def to_dense(x):
     assert isinstance(x, Matrix)
 
     shape = (np.prod(x.shape[:-1]), x.shape[-1])
-    row_idxs = _row_indices(x)
-    col_idxs = x.indices
+    row_idxs = x.row_indices.type(torch.int32)
+    col_idxs = x.column_indices.type(torch.int32)
     indices = _expand_for_blocking(torch.stack([row_idxs, col_idxs], dim=1), x.blocking)
     indices = (indices[:, 0] * shape[1] + indices[:, 1]).type(torch.int64)
 
@@ -72,7 +82,9 @@ def to_sparse(x, blocking=1):
     offsets = torch.cat([zeros, torch.cumsum(row_nnzs, dim=0)])
     offsets = offsets.type(torch.int32)
 
-    indices = torch.nonzero(m)[:, 1].type(torch.int16)
+    indices = torch.nonzero(m).type(torch.int16)
+    row_indices = indices[:, 0]
+    column_indices = indices[:, 1]
 
     # Nonzero indices in the dense matrix.
     nonzero_indices = torch.nonzero(m)
@@ -82,12 +94,15 @@ def to_sparse(x, blocking=1):
     # Gather the data and construct the sparse matrix.
     data = torch.gather(x.flatten(), dim=0, index=nonzero_indices)
     data = torch.reshape(data, [-1, blocking, blocking])
-    return Matrix(x.size(), data, indices, offsets)
+    return Matrix(x.size(), data, row_indices, column_indices, offsets)
 
 
 @torch.no_grad()
 def ones_like(x):
-    return Matrix(x.size(), torch.ones_like(x.data), x.indices, x.offsets)
+    return Matrix(x.size(),
+                  torch.ones_like(x.data),
+                  x.row_indices,
+                  x.column_indices, x.offsets)
 
 
 def sum(x):
