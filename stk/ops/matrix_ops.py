@@ -4,21 +4,10 @@ import torch
 import numpy as np
 
 
-def _make_shape_tensor(x):
-    assert x.dim() == 2
-    return torch.tensor(
-        x.size(),
-        dtype=torch.int32,
-        device=torch.device("cpu"))
-
-
 @torch.no_grad()
-def row_indices(x):
-    assert isinstance(x, Matrix)
-    return sputnik.row_indices(_make_tensor_shape(x),
-                               x.data,
-                               x.offsets,
-                               x.column_indices)
+def row_indices(shape, data, offsets, column_indices):
+    shape = torch.tensor(shape, dtype=torch.int32, device=torch.device("cpu"))
+    return sputnik.row_indices(shape, data, offsets, column_indices)
 
 
 # TODO(tgale): Replace this helper with a custom kernel. This operation
