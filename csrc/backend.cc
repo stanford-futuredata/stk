@@ -153,7 +153,6 @@ std::vector<torch::Tensor> transpose(torch::Tensor shape,
 				     torch::Tensor offsets,
 				     torch::Tensor row_indices,
 				     torch::Tensor column_indices) {
-  const int kNonzeros = column_indices.numel();
   const int kBlockSize = data.size(1);
   const int kCols = access_metadata(shape, 1);
   const int kBlockCols = kCols / kBlockSize;
@@ -162,18 +161,15 @@ std::vector<torch::Tensor> transpose(torch::Tensor shape,
   // matrix's column indices.
   torch::Tensor gather_indices = column_indices.argsort();
   torch::Tensor column_indices_t = row_indices.gather(0, gather_indices);
+  torch::Tensor block_offsets_t = gather_indices.to(torch::kInt32);
 
-  // Sort block offsets by column indices to get the transposed
-  // matrix's block locations for each block row.
   auto options = torch::TensorOptions()
     .dtype(torch::kInt32)
     .device(data.device());
-  torch::Tensor block_offsets = torch::arange(0, kNonzeros, options);
-  torch::Tensor block_offsets_t = block_offsets.gather(0, gather_indices);
+  torch::Tensor zero = torch::zeros(1, options);
 
   // Calculate the transposed matrix's offsets.
   torch::Tensor nnz_per_column = column_indices.histc(kBlockCols, 0, kBlockCols);
-  torch::Tensor zero = torch::zeros(1, options);
   torch::Tensor offsets_t = at::cat({zero, nnz_per_column.cumsum(0, torch::kInt32)});
   return {column_indices_t, offsets_t, block_offsets_t};
 }
