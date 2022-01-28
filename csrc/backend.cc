@@ -128,19 +128,15 @@ sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
 /// Row indices helper.
 //
 
-torch::Tensor row_indices(torch::Tensor shape,
-			  torch::Tensor data,
-			  torch::Tensor offsets,
-			  torch::Tensor column_indices) {
-  auto x = as_block_matrix(shape, data, offsets, column_indices);
-  auto options = torch::TensorOptions()
-    .dtype(torch::kInt16)
-    .device(data.device());
-  auto out = torch::empty(column_indices.size(0), options);
+void row_indices(torch::Tensor shape,
+		 torch::Tensor data,
+		 torch::Tensor offsets,
+		 torch::Tensor column_indices,
+		 torch::Tensor row_indices) {
+  auto x = as_block_matrix(shape, data, offsets, row_indices, column_indices);
   CALL_CUDA(sputnik::block::RowIndices(x,
-				       out.data_ptr<short>(),
+				       (short*)x.row_indices,
 				       c10::cuda::getCurrentCUDAStream()));
-  return out;
 }
 
 //

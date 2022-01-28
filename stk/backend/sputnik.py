@@ -488,7 +488,9 @@ class RowIndices(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, shape, data, offsets, column_indices):
-        return backend.row_indices(shape, data, offsets, column_indices)
+        out = torch.empty_like(column_indices)
+        backend.row_indices(shape, data, offsets, column_indices, out)
+        return out
 
 
 row_indices = RowIndices.apply
