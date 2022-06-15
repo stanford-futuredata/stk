@@ -14,27 +14,18 @@
   } while (0)
 
 #define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda())
-#define CHECK_CPU(x) TORCH_CHECK(!x.is_cuda())
 #define CHECK_HALF(x) TORCH_CHECK(x.scalar_type() == torch::ScalarType::Half)
 #define CHECK_INT(x) TORCH_CHECK(x.scalar_type() == torch::ScalarType::Int)
 #define CHECK_SHORT(x) TORCH_CHECK(x.scalar_type() == torch::ScalarType::Short)
-#define CHECK_SCALAR(x) TORCH_CHECK(x.numel() == 1)
 #define CHECK_VECTOR(x) TORCH_CHECK(x.ndimension() == 1)
 #define CHECK_MATRIX(x) TORCH_CHECK(x.ndimension() == 2)
 #define CHECK_3D(x) TORCH_CHECK(x.ndimension() == 3)
-#define CHECK_SHAPE(x) TORCH_CHECK(x.numel() == 2)
 
-void validate_shape(torch::Tensor shape) {
-  CHECK_CPU(shape);
-  CHECK_SHAPE(shape);
-  CHECK_INT(shape);
-}
+using Shape = std::pair<int, int>;
 
-void validate_sparse(torch::Tensor shape,
-		     torch::Tensor data,
+void validate_sparse(torch::Tensor data,
 		     torch::Tensor offsets,
 		     torch::Tensor column_indices) {
-  validate_shape(shape);
   CHECK_CUDA(data);
   CHECK_3D(data);
   CHECK_HALF(data);
@@ -52,12 +43,10 @@ void validate_sparse(torch::Tensor shape,
   TORCH_CHECK(data.size(1) == 128);
 }
 
-void validate_sparse(torch::Tensor shape,
-		     torch::Tensor data,
+void validate_sparse(torch::Tensor data,
 		     torch::Tensor offsets,
 		     torch::Tensor row_indices,
 		     torch::Tensor column_indices) {
-  validate_sparse(shape, data, offsets, column_indices);
   CHECK_CUDA(row_indices);
   CHECK_VECTOR(row_indices);
   CHECK_SHORT(row_indices);
@@ -94,13 +83,13 @@ int access_metadata(torch::Tensor m, int idx = 0) {
   return accessor[idx];
 }
 
-sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
+// TODO(tgale): Can we delete this?
+sputnik::block::BlockMatrix as_block_matrix(Shape shape,
 					    torch::Tensor data,
 					    torch::Tensor offsets,
 					    torch::Tensor column_indices) {
-  validate_sparse(shape, data, offsets, column_indices);
-  return sputnik::block::BlockMatrix(access_metadata(shape, 0),
-				     access_metadata(shape, 1),
+  validate_sparse(data, offsets, column_indices);
+  return sputnik::block::BlockMatrix(shape.first, shape.second,
 				     sputnik::block::AsBlockSize(data.size(1)),
 				     data.numel(),
 				     data.data_ptr(),
@@ -108,14 +97,13 @@ sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
 				     column_indices.data_ptr());
 }
 
-sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
+sputnik::block::BlockMatrix as_block_matrix(Shape shape,
 					    torch::Tensor data,
 					    torch::Tensor offsets,
 					    torch::Tensor row_indices,
 					    torch::Tensor column_indices) {
-  validate_sparse(shape, data, offsets, row_indices, column_indices);
-  return sputnik::block::BlockMatrix(access_metadata(shape, 0),
-				     access_metadata(shape, 1),
+  validate_sparse(data, offsets, row_indices, column_indices);
+  return sputnik::block::BlockMatrix(shape.first, shape.second,
 				     sputnik::block::AsBlockSize(data.size(1)),
 				     data.numel(),
 				     data.data_ptr(),
@@ -128,7 +116,7 @@ sputnik::block::BlockMatrix as_block_matrix(torch::Tensor shape,
 /// Row indices helper.
 //
 
-void row_indices(torch::Tensor shape,
+void row_indices(Shape shape,
 		 torch::Tensor data,
 		 torch::Tensor offsets,
 		 torch::Tensor column_indices,
@@ -147,14 +135,14 @@ void row_indices(torch::Tensor shape,
 // Will need to move those from blockparty into this repo.
 //
 // TODO(tgale): Consider also returning row indices for the
-// transposed matrix if we every expose the transposed matrix.
-std::vector<torch::Tensor> transpose(torch::Tensor shape,
+// transposed matrix if we ever expose the transposed matrix.
+std::vector<torch::Tensor> transpose(Shape shape,
 				     torch::Tensor data,
 				     torch::Tensor offsets,
 				     torch::Tensor row_indices,
 				     torch::Tensor column_indices) {
   const int kBlockSize = data.size(1);
-  const int kCols = access_metadata(shape, 1);
+  const int kCols = shape.second;
   const int kBlockCols = kCols / kBlockSize;
 
   // Sort row indices by column indices to get the transposed
@@ -174,11 +162,11 @@ std::vector<torch::Tensor> transpose(torch::Tensor shape,
   return {column_indices_t, offsets_t, block_offsets_t};
 }
 
-void standardize_shape(torch::Tensor shape, bool transpose) {
-  int rows = transpose ? access_metadata(shape, 1) : access_metadata(shape, 0);
-  int cols = transpose ? access_metadata(shape, 0) : access_metadata(shape, 1);
-  shape.data_ptr<int>()[0] = rows;
-  shape.data_ptr<int>()[1] = cols;
+void standardize_shape(Shape &shape, bool transpose) {
+  int rows = transpose ? shape.second : shape.first;
+  int cols = transpose ? shape.first : shape.second;
+  shape.first = rows;
+  shape.second = cols;
 }
 
 //
@@ -207,8 +195,7 @@ torch::Tensor allocate_bitmask(sputnik::block::BlockMatrix m, bool trans, torch:
 /// Custom operations.
 //
 
-
-void dsd(torch::Tensor shape,
+void dsd(Shape shape,
 	 torch::Tensor data,
 	 torch::Tensor offsets,
 	 torch::Tensor row_indices,
@@ -217,7 +204,6 @@ void dsd(torch::Tensor shape,
 	 torch::Tensor rhs_t,
 	 torch::Tensor out_t) {
   // Convert the arguments to sputnik types.
-  validate_shape(shape);
   standardize_shape(shape, transpose_lhs);
   auto lhs = as_block_matrix(shape,
 			     data,
@@ -255,7 +241,7 @@ void dsd(torch::Tensor shape,
 }
 
 void dds(torch::Tensor lhs_t,
-	 torch::Tensor shape,
+	 Shape shape,
 	 torch::Tensor data,
 	 torch::Tensor offsets,
 	 torch::Tensor row_indices,
@@ -265,7 +251,6 @@ void dds(torch::Tensor lhs_t,
   // Convert the arguments to sputnik types.
   auto lhs = as_matrix(lhs_t);
   bool transpose_lhs = is_transposed(lhs_t);
-  validate_shape(shape);
   standardize_shape(shape, transpose_rhs);
   auto rhs = as_block_matrix(shape,
 			     data,
@@ -302,7 +287,7 @@ void dds(torch::Tensor lhs_t,
 
 void sdd(torch::Tensor lhs_t,
 	 torch::Tensor rhs_t,
-	 torch::Tensor shape,
+	 Shape shape,
 	 torch::Tensor data,
 	 torch::Tensor offsets,
 	 torch::Tensor row_indices,
@@ -333,20 +318,19 @@ void sdd(torch::Tensor lhs_t,
 				   c10::cuda::getCurrentCUDAStream()));
 }
 
-void ssd(torch::Tensor lhs_shape,
+void ssd(Shape lhs_shape,
 	 torch::Tensor lhs_data,
 	 torch::Tensor lhs_offsets,
 	 torch::Tensor lhs_row_indices,
 	 torch::Tensor lhs_column_indices,
 	 bool transpose_lhs,
 	 torch::Tensor rhs_t,
-	 torch::Tensor out_shape,
+	 Shape out_shape,
 	 torch::Tensor out_data,
 	 torch::Tensor out_offsets,
 	 torch::Tensor out_row_indices,
 	 torch::Tensor out_column_indices) {
   // Convert the arguments to sputnik types.
-  validate_shape(lhs_shape);
   standardize_shape(lhs_shape, transpose_lhs);
   auto lhs = as_block_matrix(lhs_shape,
 			     lhs_data,
@@ -394,13 +378,13 @@ void ssd(torch::Tensor lhs_shape,
 }
 
 void sds(torch::Tensor lhs_t,
-	 torch::Tensor rhs_shape,
+	 Shape rhs_shape,
 	 torch::Tensor rhs_data,
 	 torch::Tensor rhs_offsets,
 	 torch::Tensor rhs_row_indices,
 	 torch::Tensor rhs_column_indices,
 	 bool transpose_rhs,
-	 torch::Tensor out_shape,
+	 Shape out_shape,
 	 torch::Tensor out_data,
 	 torch::Tensor out_offsets,
 	 torch::Tensor out_row_indices,
@@ -409,7 +393,6 @@ void sds(torch::Tensor lhs_t,
   auto lhs = as_matrix(lhs_t);
   bool transpose_lhs = is_transposed(lhs_t);
 
-  validate_shape(rhs_shape);
   standardize_shape(rhs_shape, transpose_rhs);
   auto rhs = as_block_matrix(rhs_shape,
 			     rhs_data,
@@ -452,13 +435,13 @@ void sds(torch::Tensor lhs_t,
 				     c10::cuda::getCurrentCUDAStream()));
 }
 
-void dss(torch::Tensor lhs_shape,
+void dss(Shape lhs_shape,
 	 torch::Tensor lhs_data,
 	 torch::Tensor lhs_offsets,
 	 torch::Tensor lhs_row_indices,
 	 torch::Tensor lhs_column_indices,
 	 bool transpose_lhs,
-	 torch::Tensor rhs_shape,
+	 Shape rhs_shape,
 	 torch::Tensor rhs_data,
 	 torch::Tensor rhs_offsets,
 	 torch::Tensor rhs_row_indices,
@@ -466,7 +449,6 @@ void dss(torch::Tensor lhs_shape,
 	 bool transpose_rhs,
 	 torch::Tensor out_t) {
   // Convert the arguments to sputnik types.
-  validate_shape(lhs_shape);
   standardize_shape(lhs_shape, transpose_lhs);
   auto lhs = as_block_matrix(lhs_shape,
 			     lhs_data,
@@ -474,7 +456,6 @@ void dss(torch::Tensor lhs_shape,
 			     lhs_row_indices,
 			     lhs_column_indices);
 
-  validate_shape(rhs_shape);
   standardize_shape(rhs_shape, transpose_rhs);
   auto rhs = as_block_matrix(rhs_shape,
 			     rhs_data,
