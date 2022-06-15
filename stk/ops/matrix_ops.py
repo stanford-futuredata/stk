@@ -6,7 +6,6 @@ import numpy as np
 
 @torch.no_grad()
 def row_indices(shape, data, offsets, column_indices):
-    shape = torch.tensor(shape, dtype=torch.int32, device=torch.device("cpu"))
     return sputnik.row_indices(shape, data, offsets, column_indices)
 
 
