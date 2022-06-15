@@ -116,18 +116,22 @@ class Matrix(object):
                  data,
                  row_indices,
                  column_indices,
-                 offsets):
+                 offsets,
+                 validate=True):
         self._size = size
+        self._data = data
         self._row_indices = row_indices
         self._column_indices = column_indices
         self._offsets = offsets
 
         # Lightweight validation.
-        self._data = _validate_matrix(self._size,
-                                      data,
-                                      self._row_indices,
-                                      self._column_indices,
-                                      self._offsets)
+        if validate:
+            self._data = _validate_matrix(self._size,
+                                          data,
+                                          self._row_indices,
+                                          self._column_indices,
+                                          self._offsets)
+
         self._transposed = False
 
 

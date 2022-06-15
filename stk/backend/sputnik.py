@@ -224,7 +224,10 @@ class SDD(torch.autograd.Function):
             row_indices,
             column_indices)
         ctx.shape = shape
-        out = torch.empty_like(data)
+        out = torch.empty(
+            data.shape,
+            dtype=data.dtype,
+            device=data.device)
         backend.sdd(lhs,
                     rhs,
                     shape,
@@ -294,7 +297,10 @@ class SSD(torch.autograd.Function):
         ctx.transpose_a = transpose_a
         ctx.shape = shape
 
-        out = torch.empty_like(data)
+        out = torch.empty(
+            data.shape,
+            dtype=data.dtype,
+            device=data.device)
         backend.ssd(lhs_shape,
                     lhs_data,
                     lhs_offsets,
@@ -368,7 +374,10 @@ class SDS(torch.autograd.Function):
         ctx.transpose_b = transpose_b
         ctx.shape = shape
 
-        out = torch.empty_like(data)
+        out = torch.empty(
+            data.shape,
+            dtype=data.dtype,
+            device=data.device)
         backend.sds(lhs,
                     rhs_shape,
                     rhs_data,
@@ -495,7 +504,10 @@ class RowIndices(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, shape, data, offsets, column_indices):
-        out = torch.empty_like(column_indices)
+        out = torch.empty(
+            column_indices.shape,
+            dtype=column_indices.dtype,
+            device=column_indices.device)
         backend.row_indices(shape, data, offsets, column_indices, out)
         return out
 

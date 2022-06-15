@@ -41,7 +41,8 @@ def sdd(a, b, topo):
                   out,
                   topo.row_indices,
                   topo.column_indices,
-                  topo.offsets)
+                  topo.offsets,
+                  validate=False)
 
 
 def ssd(a, b, topo):
@@ -64,7 +65,8 @@ def ssd(a, b, topo):
                   out,
                   topo.row_indices,
                   topo.column_indices,
-                  topo.offsets)
+                  topo.offsets,
+                  validate=False)
 
 
 def sds(a, b, topo):
@@ -87,7 +89,8 @@ def sds(a, b, topo):
                   out,
                   topo.row_indices,
                   topo.column_indices,
-                  topo.offsets)
+                  topo.offsets,
+                  validate=False)
 
 
 def dss(a, b):
