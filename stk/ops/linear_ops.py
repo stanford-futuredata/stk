@@ -10,6 +10,9 @@ def dsd(a, b):
         a.data, a.offsets,
         a.row_indices,
         a.column_indices,
+        a.offsets_t,
+        a.column_indices_t,
+        a.block_offsets_t,
         not a.is_contiguous(),
         b)
 
@@ -23,6 +26,9 @@ def dds(a, b):
         b.data, b.offsets,
         b.row_indices,
         b.column_indices,
+        b.offsets_t,
+        b.column_indices_t,
+        b.block_offsets_t,
         not b.is_contiguous())
 
 
@@ -34,15 +40,21 @@ def sdd(a, b, topo):
     out = sputnik.sdd(
         a, b,
         topo.size(),
-        topo.data, topo.offsets,
+        topo.data,
+        topo.offsets,
         topo.row_indices,
-        topo.column_indices)
+        topo.column_indices,
+        topo.offsets_t,
+        topo.column_indices_t,
+        topo.block_offsets_t)
     return Matrix(topo.size(),
                   out,
                   topo.row_indices,
                   topo.column_indices,
                   topo.offsets,
-                  validate=False)
+                  topo.offsets_t,
+                  topo.column_indices_t,
+                  topo.block_offsets_t)
 
 
 def ssd(a, b, topo):
@@ -65,8 +77,7 @@ def ssd(a, b, topo):
                   out,
                   topo.row_indices,
                   topo.column_indices,
-                  topo.offsets,
-                  validate=False)
+                  topo.offsets)
 
 
 def sds(a, b, topo):
@@ -89,8 +100,7 @@ def sds(a, b, topo):
                   out,
                   topo.row_indices,
                   topo.column_indices,
-                  topo.offsets,
-                  validate=False)
+                  topo.offsets)
 
 
 def dss(a, b):

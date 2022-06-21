@@ -53,6 +53,28 @@ void validate_sparse(torch::Tensor data,
 
   // Both match number of blocks.
   TORCH_CHECK(row_indices.size(0) == column_indices.size(0));
+  validate_sparse(data, offsets, column_indices);
+}
+
+void validate_sparse(torch::Tensor data,
+		     torch::Tensor offsets,
+		     torch::Tensor row_indices,
+		     torch::Tensor column_indices,
+		     torch::Tensor offsets_t,
+		     torch::Tensor column_indices_t,
+		     torch::Tensor block_offsets_t) {
+  CHECK_CUDA(offsets_t);
+  CHECK_VECTOR(offsets_t);
+  CHECK_INT(offsets_t);
+  CHECK_CUDA(column_indices_t);
+  CHECK_VECTOR(column_indices_t);
+  CHECK_SHORT(column_indices_t);
+  CHECK_CUDA(block_offsets_t);
+  CHECK_VECTOR(block_offsets_t);
+  CHECK_INT(block_offsets_t);
+
+  TORCH_CHECK(column_indices_t.size(0) == row_indices.size(0));
+  validate_sparse(data, offsets, row_indices, column_indices);
 }
 
 bool is_transposed(torch::Tensor x) {
@@ -110,6 +132,28 @@ sputnik::block::BlockMatrix as_block_matrix(Shape shape,
 				     offsets.data_ptr(),
 				     column_indices.data_ptr(),
 				     row_indices.data_ptr());
+}
+
+sputnik::block::BlockMatrix as_block_matrix(Shape shape,
+					    torch::Tensor data,
+					    torch::Tensor offsets,
+					    torch::Tensor row_indices,
+					    torch::Tensor column_indices,
+					    torch::Tensor offsets_t,
+					    torch::Tensor column_indices_t,
+					    torch::Tensor block_offsets_t) {
+  validate_sparse(data, offsets, row_indices, column_indices, offsets_t, column_indices_t, block_offsets_t);
+  auto out = sputnik::block::BlockMatrix(shape.first, shape.second,
+					 sputnik::block::AsBlockSize(data.size(1)),
+					 data.numel(),
+					 data.data_ptr(),
+					 offsets.data_ptr(),
+					 column_indices.data_ptr(),
+					 row_indices.data_ptr());
+  out.offsets_t = offsets_t.data_ptr();
+  out.indices_t = column_indices_t.data_ptr();
+  out.block_offsets = block_offsets_t.data_ptr();
+  return out;
 }
 
 //
@@ -200,6 +244,9 @@ void dsd(Shape shape,
 	 torch::Tensor offsets,
 	 torch::Tensor row_indices,
 	 torch::Tensor column_indices,
+	 torch::Tensor offsets_t,
+	 torch::Tensor column_indices_t,
+	 torch::Tensor block_offsets_t,
 	 bool transpose_lhs,
 	 torch::Tensor rhs_t,
 	 torch::Tensor out_t) {
@@ -209,7 +256,10 @@ void dsd(Shape shape,
 			     data,
 			     offsets,
 			     row_indices,
-			     column_indices);
+			     column_indices,
+			     offsets_t,
+			     column_indices_t,
+			     block_offsets_t);
   auto rhs = as_matrix(rhs_t);
   bool transpose_rhs = is_transposed(rhs_t);
   auto out = as_matrix(out_t);
@@ -220,17 +270,6 @@ void dsd(Shape shape,
 					  rhs,
 					  transpose_rhs,
 					  out));
-
-  std::vector<torch::Tensor> meta;
-  if (transpose_lhs) {
-    // Populate the transpose meta-data.
-    meta = transpose(shape, data, offsets, row_indices, column_indices);
-
-    // Set the data pointers.
-    lhs.indices_t = meta[0].data_ptr();
-    lhs.offsets_t = meta[1].data_ptr();
-    lhs.block_offsets = meta[2].data_ptr();
-  }
 
   CALL_CUDA(sputnik::block::MatmulEx(lhs,
 				     transpose_lhs,
@@ -246,6 +285,9 @@ void dds(torch::Tensor lhs_t,
 	 torch::Tensor offsets,
 	 torch::Tensor row_indices,
 	 torch::Tensor column_indices,
+	 torch::Tensor offsets_t,
+	 torch::Tensor column_indices_t,
+	 torch::Tensor block_offsets_t,
 	 bool transpose_rhs,
 	 torch::Tensor out_t) {
   // Convert the arguments to sputnik types.
@@ -256,7 +298,10 @@ void dds(torch::Tensor lhs_t,
 			     data,
 			     offsets,
 			     row_indices,
-			     column_indices);
+			     column_indices,
+			     offsets_t,
+			     column_indices_t,
+			     block_offsets_t);
   auto out = as_matrix(out_t);
 
   // Validate the problem configuration.
@@ -265,17 +310,6 @@ void dds(torch::Tensor lhs_t,
 					  rhs,
 					  transpose_rhs,
 					  out));
-
-  std::vector<torch::Tensor> meta;
-  if (!transpose_rhs) {
-    // Populate the transpose meta-data.
-    meta = transpose(shape, data, offsets, row_indices, column_indices);
-
-    // Set the data pointers.
-    rhs.indices_t = meta[0].data_ptr();
-    rhs.offsets_t = meta[1].data_ptr();
-    rhs.block_offsets = meta[2].data_ptr();
-  }
 
   CALL_CUDA(sputnik::block::MatmulEx(lhs,
 				     transpose_lhs,

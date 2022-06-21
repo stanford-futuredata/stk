@@ -1,11 +1,10 @@
 import numpy as np
 import torch
 
-# 2. Add heavyweight (data) validation helper.
-# 3. Add construction helpers
-# 4. Test with custom kernels.
-# 5. Make indentation consistent
-# 6. Replace asserts with descriptive errors.
+# 1. Add heavyweight (data) validation helper.
+# 2. Add construction helpers
+# 3. Make indentation consistent
+# 4. Replace asserts with descriptive errors.
 
 ##
 ### Validation helpers.
@@ -103,6 +102,27 @@ def _validate_matrix(shape, data, row_indices, column_indices, offsets):
     return data
 
 
+def _transpose(size, data, row_indices, column_indices, offsets):
+    block_columns = size[1] // data.shape[1]
+
+    # Sort row indices by column indices to get the transposed matrix's
+    # column indices.
+    gather_indices = column_indices.argsort()
+    column_indices_t = row_indices.gather(0, gather_indices)
+    block_offsets_t = gather_indices.int()
+
+    # NOTE: Histogram is not implemented for any integer type on CPU. Do
+    # the histogram in 32-bit float, which can exactly represent 16-bit
+    # integers.
+    column_indices_float = column_indices.float()
+
+    zero = torch.zeros((1,), dtype=torch.int32, device=data.device)
+    nnz_per_column = column_indices_float.histc(block_columns, 0, block_columns)
+    nnz_per_column = nnz_per_column.int()
+    offsets_t = torch.cat([zero, nnz_per_column.cumsum(0, dtype=torch.int32)])
+    return column_indices_t, offsets_t, block_offsets_t
+
+
 class Matrix(object):
     """A matrix stored in sparse format.
 
@@ -117,20 +137,23 @@ class Matrix(object):
                  row_indices,
                  column_indices,
                  offsets,
-                 validate=True):
+                 column_indices_t=None,
+                 offsets_t=None,
+                 block_offsets_t=None):
         self._size = size
         self._data = data
         self._row_indices = row_indices
         self._column_indices = column_indices
         self._offsets = offsets
 
-        # Lightweight validation.
-        if validate:
-            self._data = _validate_matrix(self._size,
-                                          data,
-                                          self._row_indices,
-                                          self._column_indices,
-                                          self._offsets)
+        # Produce the transpose meta-data if it is not passed in.
+        if ((column_indices_t is None) or (offsets_t is None) or
+            (block_offsets_t is None)):
+            column_indices_t, offsets_t, block_offsets_t = _transpose(
+                size, data, row_indices, column_indices, offsets)
+        self._column_indices_t = column_indices_t
+        self._offsets_t = offsets_t
+        self._block_offsets_t = block_offsets_t
 
         self._transposed = False
 
@@ -152,6 +175,9 @@ class Matrix(object):
         self._row_indices = self._row_indices.to(device)
         self._column_indices = self._column_indices.to(device)
         self._offsets = self._offsets.to(device)
+        self._column_indices_t = self._column_indices_t.to(device)
+        self._offsets_t = self._offsets_t.to(device)
+        self._block_offsets_t = self._block_offsets_t.to(device)
         return self
 
     def cuda(self):
@@ -163,7 +189,10 @@ class Matrix(object):
             self.data.clone(),
             self.row_indices.clone(),
             self.column_indices.clone(),
-            self.offsets.clone())
+            self.offsets.clone(),
+            self.column_indices_t.clone(),
+            self.offsets_t.clone(),
+            self.block_offsets_t.clone())
 
     def t(self):
         if self.dim() != 2:
@@ -174,7 +203,10 @@ class Matrix(object):
                      self.data,
                      self.row_indices,
                      self.column_indices,
-                     self.offsets)
+                     self.offsets,
+                     self.column_indices_t,
+                     self.offsets_t,
+                     self.block_offsets_t)
         out._transposed = not self._transposed
         out._size = torch.Size((self._size[1], self._size[0]))
         return out
@@ -220,6 +252,18 @@ class Matrix(object):
         return self._offsets
 
     @property
+    def offsets_t(self):
+        return self._offsets_t
+
+    @property
+    def column_indices_t(self):
+        return self._column_indices_t
+
+    @property
+    def block_offsets_t(self):
+        return self._block_offsets_t
+
+    @property
     def dtype(self):
         return self.data.dtype
 
@@ -253,7 +297,10 @@ class Matrix(object):
                       self.data,
                       self.row_indices,
                       self.column_indices,
-                      self.offsets)
+                      self.offsets,
+                      self.column_indices_t,
+                      self.offsets_t,
+                      self.block_offsets_t)
 
     @property
     def grad(self):
@@ -267,5 +314,8 @@ class Matrix(object):
                      self.data.grad,
                      self.row_indices,
                      self.column_indices,
-                     self.offsets)
+                     self.offsets,
+                     self.column_indices_t,
+                     self.offsets_t,
+                     self.block_offsets_t)
         return out if self.is_contiguous() else out.t()

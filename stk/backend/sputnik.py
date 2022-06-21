@@ -89,12 +89,18 @@ class DSD(torch.autograd.Function):
                 offsets,
                 row_indices,
                 column_indices,
+                offsets_t,
+                column_indices_t,
+                block_offsets_t,
                 transpose_a,
                 rhs):
         ctx.save_for_backward(data,
                               offsets,
                               row_indices,
                               column_indices,
+                              offsets_t,
+                              column_indices_t,
+                              block_offsets_t,
                               rhs)
         ctx.shape = _standardize_shape(shape, transpose_a)
         ctx.transpose_a = transpose_a
@@ -109,6 +115,9 @@ class DSD(torch.autograd.Function):
                     offsets,
                     row_indices,
                     column_indices,
+                    offsets_t,
+                    column_indices_t,
+                    block_offsets_t,
                     transpose_a,
                     rhs,
                     out)
@@ -116,8 +125,8 @@ class DSD(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, dy):
-        data, offsets, row_indices, column_indices, rhs = ctx.saved_tensors
-        lhs = (ctx.shape, data, offsets, row_indices, column_indices)
+        lhs = (ctx.shape,) + ctx.saved_tensors[:-1]
+        rhs = ctx.saved_tensors[-1]
         trans_a = ctx.transpose_a
         trans_b = _is_transposed(rhs)
 
@@ -130,7 +139,7 @@ class DSD(torch.autograd.Function):
                                   trans_a,
                                   trans_b)
         drhs = None
-        if ctx.needs_input_grad[6]:
+        if ctx.needs_input_grad[-1]:
             op = dds if trans_b else dsd
             drhs = _rhs_gradient(op,
                                  lhs,
@@ -138,7 +147,7 @@ class DSD(torch.autograd.Function):
                                  dy,
                                  trans_a,
                                  trans_b)
-        return None, ddata, None, None, None, None, drhs
+        return None, ddata, None, None, None, None, None, None, None, drhs
 
 
 dsd = DSD.apply
@@ -154,12 +163,18 @@ class DDS(torch.autograd.Function):
                 offsets,
                 row_indices,
                 column_indices,
+                offsets_t,
+                column_indices_t,
+                block_offsets_t,
                 transpose_b):
         ctx.save_for_backward(lhs,
                               data,
                               offsets,
                               row_indices,
-                              column_indices)
+                              column_indices,
+                              offsets_t,
+                              column_indices_t,
+                              block_offsets_t)
         ctx.shape = _standardize_shape(shape, transpose_b)
         ctx.transpose_b = transpose_b
         out = torch.empty((lhs.size()[0], shape[1]),
@@ -171,14 +186,17 @@ class DDS(torch.autograd.Function):
                     offsets,
                     row_indices,
                     column_indices,
+                    offsets_t,
+                    column_indices_t,
+                    block_offsets_t,
                     transpose_b,
                     out)
         return out
 
     @staticmethod
     def backward(ctx, dy):
-        lhs, data, offsets, row_indices, column_indices = ctx.saved_tensors
-        rhs = (ctx.shape, data, offsets, row_indices, column_indices)
+        lhs = ctx.saved_tensors[0]
+        rhs = (ctx.shape,) + ctx.saved_tensors[1:]
         trans_a = _is_transposed(lhs)
         trans_b = ctx.transpose_b
 
@@ -199,7 +217,7 @@ class DDS(torch.autograd.Function):
                                   dy,
                                   trans_a,
                                   trans_b)
-        return dlhs, None, ddata, None, None, None, None
+        return dlhs, None, ddata, None, None, None, None, None, None, None
 
 
 dds = DDS.apply
@@ -215,14 +233,20 @@ class SDD(torch.autograd.Function):
                 data,
                 offsets,
                 row_indices,
-                column_indices):
+                column_indices,
+                offsets_t,
+                column_indices_t,
+                block_offsets_t):
         ctx.save_for_backward(
             lhs,
             rhs,
             data,
             offsets,
             row_indices,
-            column_indices)
+            column_indices,
+            offsets_t,
+            column_indices_t,
+            block_offsets_t)
         ctx.shape = shape
         out = torch.empty(
             data.shape,
@@ -239,8 +263,8 @@ class SDD(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, dy):
-        lhs, rhs, data, offsets, row_indices, column_indices = ctx.saved_tensors
-        dy = (ctx.shape, dy, offsets, row_indices, column_indices)
+        lhs, rhs = ctx.saved_tensors[:2]
+        dy = (ctx.shape, dy) + ctx.saved_tensors[3:]
         trans_a = _is_transposed(lhs)
         trans_b = _is_transposed(rhs)
 
@@ -262,7 +286,7 @@ class SDD(torch.autograd.Function):
                                  dy,
                                  trans_a,
                                  trans_b)
-        return dlhs, drhs, None, None, None, None, None
+        return dlhs, drhs, None, None, None, None, None, None, None, None
 
 
 sdd = SDD.apply
