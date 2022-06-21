@@ -52,8 +52,8 @@ def sdd(a, b, topo):
                   topo.row_indices,
                   topo.column_indices,
                   topo.offsets,
-                  topo.offsets_t,
                   topo.column_indices_t,
+                  topo.offsets_t,
                   topo.block_offsets_t)
 
 
