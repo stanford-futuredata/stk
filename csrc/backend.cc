@@ -253,6 +253,14 @@ void dsd(Shape shape,
 	 torch::Tensor out_t) {
   if (out_t.numel() == 0) return;
 
+  // If either of the inputs is zero sized the output is zero. This
+  // can happen in gradient calculation for a product between a zero
+  // sized tensor and a non-zero sized tensor.
+  if ((data.numel() == 0) || (rhs_t.numel() == 0)) {
+    out_t.zero_();
+    return;
+  }
+
   // Convert the arguments to sputnik types.
   standardize_shape(shape, transpose_lhs);
   auto lhs = as_block_matrix(shape,
@@ -295,6 +303,14 @@ void dds(torch::Tensor lhs_t,
 	 torch::Tensor out_t) {
   if (out_t.numel() == 0) return;
 
+  // If either of the inputs is zero sized the output is zero. This
+  // can happen in gradient calculation for a product between a zero
+  // sized tensor and a non-zero sized tensor.
+  if ((data.numel() == 0) || (lhs_t.numel() == 0)) {
+    out_t.zero_();
+    return;
+  }
+
   // Convert the arguments to sputnik types.
   auto lhs = as_matrix(lhs_t);
   bool transpose_lhs = is_transposed(lhs_t);
@@ -332,6 +348,14 @@ void sdd(torch::Tensor lhs_t,
 	 torch::Tensor row_indices,
 	 torch::Tensor column_indices) {
   if (data.numel() == 0) return;
+
+  // If either of the inputs is zero sized the output is zero. This
+  // can happen in gradient calculation for a product between a zero
+  // sized tensor and a non-zero sized tensor.
+  if ((lhs_t.numel() == 0) || (rhs_t.numel() == 0)) {
+    data.zero_();
+    return;
+  }
 
   // Convert the arguments to sputnik types.
   auto lhs = as_matrix(lhs_t);
@@ -372,6 +396,14 @@ void ssd(Shape lhs_shape,
 	 torch::Tensor out_row_indices,
 	 torch::Tensor out_column_indices) {
   if (out_data.numel() == 0) return;
+
+  // If either of the inputs is zero sized the output is zero. This
+  // can happen in gradient calculation for a product between a zero
+  // sized tensor and a non-zero sized tensor.
+  if ((lhs_data.numel() == 0) || (rhs_t.numel() == 0)) {
+    out_data.zero_();
+    return;
+  }
 
   // Convert the arguments to sputnik types.
   standardize_shape(lhs_shape, transpose_lhs);
@@ -434,6 +466,14 @@ void sds(torch::Tensor lhs_t,
 	 torch::Tensor out_column_indices) {
   if (out_data.numel() == 0) return;
 
+  // If either of the inputs is zero sized the output is zero. This
+  // can happen in gradient calculation for a product between a zero
+  // sized tensor and a non-zero sized tensor.
+  if ((lhs_t.numel() == 0) || (rhs_data.numel() == 0)) {
+    out_data.zero_();
+    return;
+  }
+
   // Convert the arguments to sputnik types.
   auto lhs = as_matrix(lhs_t);
   bool transpose_lhs = is_transposed(lhs_t);
@@ -494,6 +534,14 @@ void dss(Shape lhs_shape,
 	 bool transpose_rhs,
 	 torch::Tensor out_t) {
   if (out_t.numel() == 0) return;
+
+  // If either of the inputs is zero sized the output is zero. This
+  // can happen in gradient calculation for a product between a zero
+  // sized tensor and a non-zero sized tensor.
+  if ((lhs_data.numel() == 0) || (rhs_data.numel() == 0)) {
+    out_t.zero_();
+    return;
+  }
 
   // Convert the arguments to sputnik types.
   standardize_shape(lhs_shape, transpose_lhs);
