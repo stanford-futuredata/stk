@@ -251,6 +251,8 @@ void dsd(Shape shape,
 	 bool transpose_lhs,
 	 torch::Tensor rhs_t,
 	 torch::Tensor out_t) {
+  if (out_t.numel() == 0) return;
+
   // Convert the arguments to sputnik types.
   standardize_shape(shape, transpose_lhs);
   auto lhs = as_block_matrix(shape,
@@ -291,6 +293,8 @@ void dds(torch::Tensor lhs_t,
 	 torch::Tensor block_offsets_t,
 	 bool transpose_rhs,
 	 torch::Tensor out_t) {
+  if (out_t.numel() == 0) return;
+
   // Convert the arguments to sputnik types.
   auto lhs = as_matrix(lhs_t);
   bool transpose_lhs = is_transposed(lhs_t);
@@ -327,6 +331,8 @@ void sdd(torch::Tensor lhs_t,
 	 torch::Tensor offsets,
 	 torch::Tensor row_indices,
 	 torch::Tensor column_indices) {
+  if (data.numel() == 0) return;
+
   // Convert the arguments to sputnik types.
   auto lhs = as_matrix(lhs_t);
   bool transpose_lhs = is_transposed(lhs_t);
@@ -365,6 +371,8 @@ void ssd(Shape lhs_shape,
 	 torch::Tensor out_offsets,
 	 torch::Tensor out_row_indices,
 	 torch::Tensor out_column_indices) {
+  if (out_data.numel() == 0) return;
+
   // Convert the arguments to sputnik types.
   standardize_shape(lhs_shape, transpose_lhs);
   auto lhs = as_block_matrix(lhs_shape,
@@ -424,6 +432,8 @@ void sds(torch::Tensor lhs_t,
 	 torch::Tensor out_offsets,
 	 torch::Tensor out_row_indices,
 	 torch::Tensor out_column_indices) {
+  if (out_data.numel() == 0) return;
+
   // Convert the arguments to sputnik types.
   auto lhs = as_matrix(lhs_t);
   bool transpose_lhs = is_transposed(lhs_t);
@@ -483,6 +493,8 @@ void dss(Shape lhs_shape,
 	 torch::Tensor rhs_column_indices,
 	 bool transpose_rhs,
 	 torch::Tensor out_t) {
+  if (out_t.numel() == 0) return;
+
   // Convert the arguments to sputnik types.
   standardize_shape(lhs_shape, transpose_lhs);
   auto lhs = as_block_matrix(lhs_shape,
