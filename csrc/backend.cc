@@ -165,6 +165,7 @@ void row_indices(Shape shape,
 		 torch::Tensor offsets,
 		 torch::Tensor column_indices,
 		 torch::Tensor row_indices) {
+  if (row_indices.numel() == 0) return;
   auto x = as_block_matrix(shape, data, offsets, row_indices, column_indices);
   CALL_CUDA(sputnik::block::RowIndices(x,
 				       (short*)x.row_indices,
