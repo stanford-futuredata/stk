@@ -123,7 +123,7 @@ def _transpose(size, data, row_indices, column_indices, offsets):
     return column_indices_t, offsets_t, block_offsets_t
 
 
-class Matrix(object):
+class Matrix(torch.nn.Module):
     """A matrix stored in sparse format.
 
     Underlying format is block compressed sparse row (BCSR).
@@ -140,6 +140,7 @@ class Matrix(object):
                  column_indices_t=None,
                  offsets_t=None,
                  block_offsets_t=None):
+        super().__init__()
         self._size = size
         self._data = data
         self._row_indices = row_indices
