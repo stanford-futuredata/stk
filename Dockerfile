@@ -23,7 +23,7 @@ ENV PATH="/usr/local/cmake/bin:${PATH}"
 # Install Sputnik.
 RUN mkdir /mount
 WORKDIR /mount
-RUN git clone --recursive https://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@github.com/tgale96/sputnik.git && \
+RUN git clone --recursive https://ithub.com/tgale96/sputnik.git && \
 	mkdir sputnik/build
 
 # HACK: Send a PR to fix this include.
