@@ -31,7 +31,7 @@ STK is designed for applications where the sparse matrices change rapidly. This 
 
 ![STK Performance](media/block_sparse_matmul_benchmarks.png)
 
-Block-sparse matrix multiplication with STK is able to match the performance of cuBLAS on a range of problems. On these benchmarks from [MegaBlocks](https://github.com/stanford-futuredata/megablocks) dMoE models, STK realizes 98.6% of cuBLAS throughput with `128x128` blocks on average.
+Block-sparse matrix multiplication with STK is able to match the performance of cuBLAS on a range of problems. On these benchmarks from [MegaBlocks](https://github.com/stanford-futuredata/megablocks) dMoE models, STK realizes **98.6%** of cuBLAS throughput with `128x128` blocks on average.
 
 ```
 Hardware: A100-SXM4-80GB
