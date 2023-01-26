@@ -4,9 +4,9 @@ A PyTorch library for sparse matrices.
 
 ## Installation
 
-We recommend using NGC's `nvcr.io/nvidia/pytorch:21.12-py3` PyTorch container and using the pre-built `.whl` under [dist](https://github.com/tgale96/stk/tree/main/dist).
+We recommend using NGC's [`nvcr.io/nvidia/pytorch:21.12-py3`](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch/tags) PyTorch container and using the pre-built `.whl` under [dist](https://github.com/tgale96/stk/tree/main/dist).
 
-```console
+```bash
 export REPO_URL=https://github.com/tgale96/stk/blob/main
 pip install ${REPO_URL}/dist/21.12-py3/stk-0.0.1-cp38-cp38-linux_x86_64.whl?raw=true
 ```
