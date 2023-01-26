@@ -2,10 +2,10 @@
 
 A light-weight PyTorch library for block-sparse matrices and block-sparse matrix multiplication.
 
-STK is built around a core sparse matrix class ((stk.Matrix)[stk/matrix.py]), which uses a hybrid *blocked-CSR-COO* sparse matrix encoding to enable efficient matrix products with sparse inputs and outputs in transposed or non-transposed order. The library supports the following operations with `block_size=128`:
+STK is built around a core sparse matrix class ([stk.Matrix](stk/matrix.py)), which uses a hybrid [blocked-CSR-COO](https://arxiv.org/abs/2211.15841) sparse matrix encoding to enable efficient matrix products with sparse inputs and outputs in transposed or non-transposed order. The library supports the following operations with `block_size=128`:
 
 ```
-[op: transpose or non-transpose]
+op: transpose or non-transpose
 
 [Sparse Matrix Multiplication]
 stk.ops.dsd: dense = op(sparse) x op(dense)
@@ -24,6 +24,8 @@ stk.ops.to_dense: stk.Matrix => torch.Tensor
 stk.random.dense_mask: Create a random, block-sparse dense matrix.
 stk.random.mask: Create a random, block-sparse sparse matrix.
 ```
+
+STK is designed for applications where the sparse matrices change rapidly. This is complementary to libraries like [triton-blocksparse](https://github.com/ptillet/torch-blocksparse), which assume that sparse matrix topologies do not change between invocations.
 
 # :rocket: Performance
 
