@@ -1,1 +1,7 @@
 recursive-include csrc *.cc
+
+recursive-include third_party/sputnik/sputnik *.h
+recursive-include third_party/sputnik/sputnik *.cu
+recursive-include third_party/sputnik/sputnik *.cc
+
+recursive-include third_party/sputnik/third_party/cutlass/include *.h
