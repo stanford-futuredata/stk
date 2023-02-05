@@ -1,4 +1,5 @@
 import sputnik_backend as backend
+from stk.backend.autocast import custom_fwd, custom_bwd
 import torch
 
 
@@ -83,6 +84,7 @@ def _rhs_gradient(op, lhs, rhs, dy, trans_lhs, trans_rhs):
 class DSD(torch.autograd.Function):
 
     @staticmethod
+    @custom_fwd
     def forward(ctx,
                 shape,
                 data,
@@ -124,6 +126,7 @@ class DSD(torch.autograd.Function):
         return out
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, dy):
         lhs = (ctx.shape,) + ctx.saved_tensors[:-1]
         rhs = ctx.saved_tensors[-1]
@@ -156,6 +159,7 @@ dsd = DSD.apply
 class DDS(torch.autograd.Function):
 
     @staticmethod
+    @custom_fwd
     def forward(ctx,
                 lhs,
                 shape,
@@ -194,6 +198,7 @@ class DDS(torch.autograd.Function):
         return out
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, dy):
         lhs = ctx.saved_tensors[0]
         rhs = (ctx.shape,) + ctx.saved_tensors[1:]
@@ -226,6 +231,7 @@ dds = DDS.apply
 class SDD(torch.autograd.Function):
 
     @staticmethod
+    @custom_fwd
     def forward(ctx,
                 lhs,
                 rhs,
@@ -262,6 +268,7 @@ class SDD(torch.autograd.Function):
         return out
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, dy):
         lhs, rhs = ctx.saved_tensors[:2]
         dy = (ctx.shape, dy) + ctx.saved_tensors[3:]
@@ -295,6 +302,7 @@ sdd = SDD.apply
 class SSD(torch.autograd.Function):
 
     @staticmethod
+    @custom_fwd
     def forward(ctx,
                 lhs_shape,
                 lhs_data,
@@ -340,6 +348,7 @@ class SSD(torch.autograd.Function):
         return out
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, dy):
         lhs = (ctx.lhs_shape,) + ctx.saved_tensors[:4]
         rhs = ctx.saved_tensors[4]
@@ -372,6 +381,7 @@ ssd = SSD.apply
 class SDS(torch.autograd.Function):
 
     @staticmethod
+    @custom_fwd
     def forward(ctx,
                 lhs,
                 rhs_shape,
@@ -417,6 +427,7 @@ class SDS(torch.autograd.Function):
         return out
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, dy):
         lhs = ctx.saved_tensors[0]
         rhs = (ctx.rhs_shape,) + ctx.saved_tensors[1:5]
@@ -450,6 +461,7 @@ sds = SDS.apply
 class DSS(torch.autograd.Function):
 
     @staticmethod
+    @custom_fwd
     def forward(ctx,
                 lhs_shape,
                 lhs_data,
@@ -494,6 +506,7 @@ class DSS(torch.autograd.Function):
         return out
 
     @staticmethod
+    @custom_bwd
     def backward(ctx, dy):
         lhs = (ctx.lhs_shape,) + ctx.saved_tensors[:4]
         rhs = (ctx.rhs_shape,) + ctx.saved_tensors[4:]
