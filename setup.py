@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from setuptools import setup, find_packages
 import subprocess
+import torch
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 
@@ -39,6 +40,10 @@ def generate_sputnik_sources():
     sources = list(filter(filter_sources, sources))
     return sources
 
+if not torch.cuda.is_available():
+    if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None:
+        os.environ["TORCH_CUDA_ARCH_LIST"] = "8.0"
+
 # NOTE: Initialize all submodules recursively prior to build.
 subprocess.call(["git", "submodule", "update", "--init", "--recursive"])
 
@@ -53,14 +58,15 @@ ext_modules = [
             f"{cwd}/third_party/sputnik/third_party/cutlass/include/"
         ],
         extra_compile_args={
-            "cxx": ["-fopenmp", "-fPIC", "-Wno-strict-aliasing"]
+            "cxx": ["-fopenmp", "-fPIC", "-Wno-strict-aliasing"],
+            "nvcc": ["-gencode", "arch=compute_80,code=sm_80"]
         }
     )
 ]
 
 setup(
     name="stanford-stk",
-    version="0.0.2",
+    version="0.0.3",
     author="Trevor Gale",
     author_email="tgale@stanford.edu",
     description="Sparse Toolkit",
