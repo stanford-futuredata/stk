@@ -66,7 +66,7 @@ ext_modules = [
 
 setup(
     name="stanford-stk",
-    version="0.0.3",
+    version="0.0.4",
     author="Trevor Gale",
     author_email="tgale@stanford.edu",
     description="Sparse Toolkit",
