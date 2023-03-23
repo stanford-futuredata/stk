@@ -21,17 +21,17 @@ def allclose(x, y, pct=0.25):
 # kernel tests done through Sputnik.
 _LINEAR_OP_TESTS = (
     (128, 128, 128, False, False, 128, 0.0),
-    # (256, 256, 256, False, False, 128, 0.5),
-    # (2048, 1024, 512, False, False, 128, 0.8),
-    # (128, 128, 128, False, True, 128, 0.0),
-    # (256, 256, 256, False, True, 128, 0.5),
-    # (2048, 1024, 512, False, True, 128, 0.8),
-    # (128, 128, 128, True, False, 128, 0.0),
-    # (256, 256, 256, True, False, 128, 0.5),
-    # (2048, 1024, 512, True, False, 128, 0.8),
-    # (128, 128, 128, True, True, 128, 0.0),
-    # (256, 256, 256, True, True, 128, 0.5),
-    # (2048, 1024, 512, True, True, 128, 0.8)
+    (256, 256, 256, False, False, 128, 0.5),
+    (2048, 1024, 512, False, False, 128, 0.8),
+    (128, 128, 128, False, True, 128, 0.0),
+    (256, 256, 256, False, True, 128, 0.5),
+    (2048, 1024, 512, False, True, 128, 0.8),
+    (128, 128, 128, True, False, 128, 0.0),
+    (256, 256, 256, True, False, 128, 0.5),
+    (2048, 1024, 512, True, False, 128, 0.8),
+    (128, 128, 128, True, True, 128, 0.0),
+    (256, 256, 256, True, True, 128, 0.5),
+    (2048, 1024, 512, True, True, 128, 0.8)
 )
 
 
@@ -89,21 +89,20 @@ class LinearOpsTest(parameterized.TestCase):
         _, topo = _dense_and_sparse(m, n, sparsity, blocking)
 
         # Execute the matmul.
-        # out = _sparse_out_with_transpose(matmul, a, b, topo, trans_a, trans_b)
+        out = _sparse_out_with_transpose(matmul, a, b, topo, trans_a, trans_b)
         stk_out = _sparse_out_with_transpose(stk.ops.sdd, a, b, topo, trans_a, trans_b)
         expected_out = _sparse_out_with_transpose(_mmm, acp, bcp, topo, trans_a, trans_b)
+
+        # Validate the results.
+        out = stk.ops.to_dense(out)
+        self.assertEqual(out.dim(), 2)
+        self.assertEqual(expected_out.size()[0], out.size()[0])
+        self.assertEqual(expected_out.size()[1], out.size()[1])
+        self.assertTrue(allclose(out, expected_out))
 
         # # Compute the gradients w.r.t. the inputs.
         # expected_out.sum().backward()
         # stk.ops.sum(out).backward()
-
-        # # Validate the results.
-        # out = stk.ops.to_dense(out)
-        # self.assertEqual(out.dim(), 2)
-        # self.assertEqual(expected_out.size()[0], out.size()[0])
-        # self.assertEqual(expected_out.size()[1], out.size()[1])
-        # self.assertTrue(allclose(out, expected_out))
-
         # # LHS gradient.
         # grad = a.grad
         # expected_grad = acp.grad
