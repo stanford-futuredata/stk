@@ -5,19 +5,8 @@ import stk
 import numpy as np
 import torch
 import triton_kernels
-from megablocks import ops
-import triton.ops
-
-def print_log_benchmark(name, arguments, time, std):
-    print("="*60)
-    print(f"{name} Benchmark")
-    print("Benchmark Parameters:")
-    for (key, value) in arguments.items():
-        print(f"{key} = {value}")
-    print("Results:")
-    print("mean time = {:.2f}ms, std time = {:.2f}ms".format(time, std))
-    print("="*60)
-
+from megablocks import ops, benchmark_util
+import triton
 
 def benchmark_function(fn, iterations=100, warmup=10):
     # Warmup iterations.
@@ -57,7 +46,7 @@ _MATMUL_TESTS = (
 
 
 def log_benchmark(name, arguments, time, std, flops):
-    print_log_benchmark(name, arguments, time, std)
+    benchmark_util.log_benchmark(name, arguments, time, std)
     print("flops = {:.2f}B".format(flops / 1e9))
     print("throughput = {:.2f}T".format(flops / 1e9 / time))
     print("="*60)
@@ -122,8 +111,10 @@ class MatmulBenchmark(parameterized.TestCase):
     def build_weight_matrix(self, ne, hs, fhs):
         return torch.randn((hs, ne * fhs)).cuda().half()
 
+    ## SDD Benchmarks
+
     @parameterized.parameters(*_MATMUL_TESTS)
-    def testFFN_Linear0_Fwd_SDD_STK(self, sl, hs, fhs, ne):
+    def testSTKFFN_Linear0_Fwd_SDD_NT(self, sl, hs, fhs, ne):
         x, padded_bins = self.build_input_matrix(sl, hs, ne)
         w = self.build_weight_matrix(ne, hs, fhs).t().contiguous()
         topo = self.build_sparse_matrix(x, padded_bins, fhs, ne)
@@ -137,17 +128,17 @@ class MatmulBenchmark(parameterized.TestCase):
             "ffn_hidden_size": fhs,
             "num_experts": ne
         }
-        log_benchmark("0::Fwd::SDD::STK", arguments, mean_t, std_t,
+        log_benchmark("0::Fwd::SDD::STK::NT", arguments, mean_t, std_t,
                       x.numel() * fhs * 2)
     
     @parameterized.parameters(*_MATMUL_TESTS)
-    def testFFN_Linear0_Fwd_SDD_Triton(self, sl, hs, fhs, ne):
+    def testTritonFFN_Linear0_Fwd_SDD_NT(self, sl, hs, fhs, ne):
         x, padded_bins = self.build_input_matrix(sl, hs, ne)
         w = self.build_weight_matrix(ne, hs, fhs).t().contiguous()
         topo = self.build_sparse_matrix(x, padded_bins, fhs, ne)
         w = transpose_view(w)
 
-        benchmark = lambda: triton_kernels.matmul(x, w, topo)
+        benchmark = lambda: triton_kernels.sdd(x, w, topo)
         mean_t, std_t = benchmark_function(benchmark)
         arguments = {
             "sequence_length": sl,
@@ -155,7 +146,7 @@ class MatmulBenchmark(parameterized.TestCase):
             "ffn_hidden_size": fhs,
             "num_experts": ne
         }
-        log_benchmark("0::Fwd::SDD::Triton", arguments, mean_t, std_t,
+        log_benchmark("0::Fwd::SDD::Triton::NT", arguments, mean_t, std_t,
                         x.numel() * fhs * 2)
     
     @parameterized.parameters(*_MATMUL_TESTS)
@@ -177,6 +168,149 @@ class MatmulBenchmark(parameterized.TestCase):
         }
         log_benchmark("0::Fwd:DDD::NT", arguments, mean_t, std_t,
                       x.numel() * fhs * 2)
+    
+    ## DSD Benchmarks
+
+    @parameterized.parameters(*_MATMUL_TESTS)
+    def testSTKFFN_Linear0_GradX_DSD_NN(self, sl, hs, fhs, ne):
+        x, padded_bins = self.build_input_matrix(sl, hs, ne)
+        w = self.build_weight_matrix(ne, hs, fhs).t().contiguous()
+        topo = self.build_sparse_matrix(x, padded_bins, fhs, ne)
+
+        benchmark = lambda: stk.ops.dsd(topo, w)
+        mean_t, std_t = benchmark_function(benchmark)
+        arguments = {
+            "sequence_length": sl,
+            "hidden_size": hs,
+            "ffn_hidden_size": fhs,
+            "num_experts": ne
+        }
+        log_benchmark("0::GradX::DSD::STK::NN", arguments, mean_t, std_t,
+                      x.numel() * fhs * 2)
+
+    @parameterized.parameters(*_MATMUL_TESTS)
+    def testSTKFFN_Linear0_GradW_DSD_TN(self, sl, hs, fhs, ne):
+        x, padded_bins = self.build_input_matrix(sl, hs, ne)
+        topo = self.build_sparse_matrix(x, padded_bins, fhs, ne)
+        topo = topo.t()
+
+        benchmark = lambda: stk.ops.dsd(topo, x)
+        mean_t, std_t = benchmark_util.benchmark_function(benchmark)
+        arguments = {
+            "sequence_length": sl,
+            "hidden_size": hs,
+            "ffn_hidden_size": fhs,
+            "num_experts": ne
+        }
+        log_benchmark("0::GradW::DSD::STK::TN", arguments, mean_t, std_t,
+                      x.numel() * fhs * 2)
+
+    @parameterized.parameters(*_MATMUL_TESTS)
+    def testSTKFFN_Linear1_Fwd_DSD_NN(self, sl, hs, fhs, ne):
+        x, padded_bins = self.build_input_matrix(sl, hs, ne)
+        w = self.build_weight_matrix(ne, hs, fhs).t().contiguous()
+        x = self.build_sparse_matrix(x, padded_bins, fhs, ne)
+
+        benchmark = lambda: stk.ops.dsd(x, w)
+        mean_t, std_t = benchmark_util.benchmark_function(benchmark)
+        arguments = {
+            "sequence_length": sl,
+            "hidden_size": hs,
+            "ffn_hidden_size": fhs,
+            "num_experts": ne
+        }
+        log_benchmark("1::Fwd::DSD::STK::NN", arguments, mean_t, std_t,
+                      x.nnz * hs * 2)
+
+    @parameterized.parameters(*_MATMUL_TESTS)
+    def testSTKFFN_Linear1_GradW_DSD_TN(self, sl, hs, fhs, ne):
+        x, padded_bins = self.build_input_matrix(sl, hs, ne)
+        w = self.build_weight_matrix(ne, hs, fhs).t().contiguous()
+        x = self.build_sparse_matrix(x, padded_bins, fhs, ne)
+        out = stk.ops.dsd(x, w)
+        x = x.t()
+
+        benchmark = lambda: stk.ops.dsd(x, out)
+        mean_t, std_t = benchmark_util.benchmark_function(benchmark)
+        arguments = {
+            "sequence_length": sl,
+            "hidden_size": hs,
+            "ffn_hidden_size": fhs,
+            "num_experts": ne
+        }
+        log_benchmark("1::GradW::DSD::STK::TN", arguments, mean_t, std_t,
+                      x.nnz * hs * 2)
+
+    @parameterized.parameters(*_MATMUL_TESTS)
+    def testTritonFFN_Linear0_GradX_DSD_NN(self, sl, hs, fhs, ne):
+        x, padded_bins = self.build_input_matrix(sl, hs, ne)
+        w = self.build_weight_matrix(ne, hs, fhs).t().contiguous()
+        topo = self.build_sparse_matrix(x, padded_bins, fhs, ne)
+
+        benchmark = lambda: triton_kernels.dsd(topo, w)
+        mean_t, std_t = benchmark_function(benchmark)
+        arguments = {
+            "sequence_length": sl,
+            "hidden_size": hs,
+            "ffn_hidden_size": fhs,
+            "num_experts": ne
+        }
+        log_benchmark("0::GradX::DSD::Triton::NN", arguments, mean_t, std_t,
+                      x.numel() * fhs * 2)
+
+    @parameterized.parameters(*_MATMUL_TESTS)
+    def testTritonFFN_Linear0_GradW_DSD_TN(self, sl, hs, fhs, ne):
+        x, padded_bins = self.build_input_matrix(sl, hs, ne)
+        topo = self.build_sparse_matrix(x, padded_bins, fhs, ne)
+        topo = topo.t()
+
+        benchmark = lambda: triton_kernels.dsd(topo, x)
+        mean_t, std_t = benchmark_util.benchmark_function(benchmark)
+        arguments = {
+            "sequence_length": sl,
+            "hidden_size": hs,
+            "ffn_hidden_size": fhs,
+            "num_experts": ne
+        }
+        log_benchmark("0::GradW::DSD::Triton::TN", arguments, mean_t, std_t,
+                      x.numel() * fhs * 2)
+
+    @parameterized.parameters(*_MATMUL_TESTS)
+    def testTritonFFN_Linear1_Fwd_DSD_NN(self, sl, hs, fhs, ne):
+        x, padded_bins = self.build_input_matrix(sl, hs, ne)
+        w = self.build_weight_matrix(ne, hs, fhs).t().contiguous()
+        x = self.build_sparse_matrix(x, padded_bins, fhs, ne)
+
+        benchmark = lambda: triton_kernels.dsd(x, w)
+        mean_t, std_t = benchmark_util.benchmark_function(benchmark)
+        arguments = {
+            "sequence_length": sl,
+            "hidden_size": hs,
+            "ffn_hidden_size": fhs,
+            "num_experts": ne
+        }
+        log_benchmark("1::Fwd::DSD::NN", arguments, mean_t, std_t,
+                      x.nnz * hs * 2)
+
+    @parameterized.parameters(*_MATMUL_TESTS)
+    def testTritonFFN_Linear1_GradW_DSD_TN(self, sl, hs, fhs, ne):
+        x, padded_bins = self.build_input_matrix(sl, hs, ne)
+        w = self.build_weight_matrix(ne, hs, fhs).t().contiguous()
+        x = self.build_sparse_matrix(x, padded_bins, fhs, ne)
+        out = stk.ops.dsd(x, w)
+        x = x.t()
+
+        benchmark = lambda: triton_kernels.dsd(x, out)
+        mean_t, std_t = benchmark_util.benchmark_function(benchmark)
+        arguments = {
+            "sequence_length": sl,
+            "hidden_size": hs,
+            "ffn_hidden_size": fhs,
+            "num_experts": ne
+        }
+        log_benchmark("1::GradW::DSD::Triton::TN", arguments, mean_t, std_t,
+                      x.nnz * hs * 2)
 
 if __name__ == '__main__':
+    print (triton.__version__)
     unittest.main()
