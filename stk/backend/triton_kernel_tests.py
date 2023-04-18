@@ -5,7 +5,7 @@ import numpy as np
 import stk
 import torch
 import triton
-from triton_kernels import sdd, dsd
+from triton_kernels import sdd, dsd, dds, matmul
 
 
 def allclose(x, y, pct=0.25):
@@ -22,7 +22,7 @@ def allclose(x, y, pct=0.25):
 # kernel tests done through Sputnik.
 _LINEAR_OP_TESTS = (
     (128, 128, 128, False, False, 128, 0.0),
-    (256, 256, 256, False, False, 128, 0.0),
+    (256, 256, 256, False, False, 128, 0.5),
     (2048, 1024, 512, False, False, 128, 0.8),
     (128, 128, 128, False, True, 128, 0.0),
     (256, 256, 256, False, True, 128, 0.5),
@@ -81,25 +81,25 @@ def _mask(x, mask):
 @parameterized.parameters(*_LINEAR_OP_TESTS)
 class LinearOpsTest(parameterized.TestCase):
 
-    # def testLinearOps_Sdd(self, m, k, n, trans_a, trans_b, blocking, sparsity):
-    #     # Construct the operands.
-    #     a_shape = (k, m) if trans_a else (m, k)
-    #     a, acp = _dense_2x(*a_shape)
-    #     b_shape = (n, k) if trans_b else (k, n)
-    #     b, bcp = _dense_2x(*b_shape)
-    #     _, topo = _dense_and_sparse(m, n, sparsity, blocking)
+    def testLinearOps_Sdd(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+        # Construct the operands.
+        a_shape = (k, m) if trans_a else (m, k)
+        a, acp = _dense_2x(*a_shape)
+        b_shape = (n, k) if trans_b else (k, n)
+        b, bcp = _dense_2x(*b_shape)
+        _, topo = _dense_and_sparse(m, n, sparsity, blocking)
 
-    #     # Execute the matmul.
-    #     out = _sparse_out_with_transpose(sdd, a, b, topo, trans_a, trans_b)
-    #     stk_out = _sparse_out_with_transpose(stk.ops.sdd, a, b, topo, trans_a, trans_b)
-    #     expected_out = _sparse_out_with_transpose(_mmm, acp, bcp, topo, trans_a, trans_b)
+        # Execute the matmul.
+        out = _sparse_out_with_transpose(sdd, a, b, topo, trans_a, trans_b)
+        stk_out = _sparse_out_with_transpose(stk.ops.sdd, a, b, topo, trans_a, trans_b)
+        expected_out = _sparse_out_with_transpose(_mmm, acp, bcp, topo, trans_a, trans_b)
 
-    #     # Validate the results.
-    #     out = stk.ops.to_dense(out)
-    #     self.assertEqual(out.dim(), 2)
-    #     self.assertEqual(expected_out.size()[0], out.size()[0])
-    #     self.assertEqual(expected_out.size()[1], out.size()[1])
-    #     self.assertTrue(allclose(out, expected_out))
+        # Validate the results.
+        out = stk.ops.to_dense(out)
+        self.assertEqual(out.dim(), 2)
+        self.assertEqual(expected_out.size()[0], out.size()[0])
+        self.assertEqual(expected_out.size()[1], out.size()[1])
+        self.assertTrue(allclose(out, expected_out))
 
     
     def testLinearOps_Dsd(self, m, k, n, trans_a, trans_b, blocking, sparsity):
@@ -109,18 +109,36 @@ class LinearOpsTest(parameterized.TestCase):
         b_shape = (n, k) if trans_b else (k, n)
         b, bcp = _dense_2x(*b_shape)
 
-        # Execute the matmul.  
+        # Execute the matmul.
+        out = _with_transpose(dsd, a, b, trans_a, trans_b) 
         stk_out = _with_transpose(stk.ops.dsd, a, b, trans_a, trans_b)
-        expected_out = _with_transpose(torch.mm, a_dense, bcp, trans_a, trans_b)
-        out = _with_transpose(dsd, a, b, trans_a, trans_b)
+        expected_out = _with_transpose(torch.mm, a_dense, bcp, trans_a, trans_b)       
         
-        # # Validate the results.
+        # Validate the results.
         self.assertEqual(out.dim(), 2)
         self.assertEqual(expected_out.size()[0], out.size()[0])
         self.assertEqual(expected_out.size()[1], out.size()[1])
         self.assertTrue(allclose(out, expected_out))
 
+    def testLinearOps_Dds(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+        # Construct the operands.
+        a_shape = (k, m) if trans_a else (m, k)
+        a, acp = _dense_2x(*a_shape)
+        b_shape = (n, k) if trans_b else (k, n)
+        b_dense, b = _dense_and_sparse(*b_shape, sparsity, blocking)
+
+        # Execute the matmul.
+        out = _with_transpose(dds, a, b, trans_a, trans_b)
+        stk_out = _with_transpose(stk.ops.dds, a, b, trans_a, trans_b)
+        expected_out = _with_transpose(torch.mm, acp, b_dense, trans_a, trans_b)
+
+        # Validate the results.
+        self.assertEqual(out.dim(), 2)
+        self.assertEqual(expected_out.size()[0], out.size()[0])
+        self.assertEqual(expected_out.size()[1], out.size()[1])
+        self.assertTrue(allclose(out, expected_out))
 
 if __name__ == '__main__':
-    print (triton.__version__)
+    # print (f'Triton version: {triton.__version__}')
+    assert triton.__version__ > '2.0.0' 
     unittest.main()
