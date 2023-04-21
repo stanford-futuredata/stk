@@ -2,7 +2,6 @@ import torch
 import triton
 import triton.language as tl
 from stk import Matrix
-from triton.language import int16
 
 @triton.autotune(
     configs=[
@@ -42,10 +41,10 @@ def _sdd_kernel(A, B, C, M, N, K,
         B += BLOCK_K * stride_bk
     #Store to sparse matrix
     acc = acc.to(C.dtype.element_ty)
-    cm = pid * BLOCK_M + tl.arange(0, BLOCK_M)
+    BLOCK_ELEMENTS = BLOCK_SIZE * BLOCK_SIZE
+    cm = tl.arange(0, BLOCK_M)
     cn = tl.arange(0, BLOCK_N)
-    C = C + (cm[:, None] * stride_cm + cn[None, :] * stride_cn)
-    # mask = (cm < M)[:, None] & (cn < N)[None, :]
+    C = C + pid * BLOCK_ELEMENTS + (cm[:, None] * stride_cm + cn[None, :] * stride_cn)
     tl.store(C, acc, mask=True)
 
 @triton.autotune(
@@ -206,188 +205,155 @@ def _dds_kernel(A, B, C, M, N, K,
     C = C + (cm[:, None] * stride_cm + cn[None, :] * stride_cn)
     tl.store(C, acc, mask=True)
 
-class _sdd(torch.autograd.Function):
+def dsd(shape,
+        data,
+        offsets,
+        row_indices,
+        column_indices,
+        offsets_t,
+        column_indices_t,
+        block_offsets_t,
+        transpose_a,
+        rhs,
+        out
+    ):
 
-    @staticmethod
-    def _call(a, b, topo):
-        device = a.device
-        trans_A = False
-        trans_B = False
-        # handle non-contiguous inputs if necessary
-        if a.stride(0) > 1 and a.stride(1) > 1:
-            trans_A = True
-        if b.stride(0) > 1 and b.stride(1) > 1:
-            trans_B = True
-        # checks constraints
-        assert a.shape[1] == b.shape[0], "incompatible dimensions"
-        M, K = a.shape
-        _, N = b.shape
-        # allocates output
-        nnz_blocks = len(topo.row_indices)
-        c = torch.empty((nnz_blocks * topo.blocking, topo.blocking), device=device, dtype=a.dtype, requires_grad=True)
+    device = rhs.device
+    trans_A = transpose_a
+    trans_B = False
 
-        # accumulator types
-        ACC_TYPE = tl.float32 if a.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
-        # launch kernel
-        grid = lambda META: (nnz_blocks,)
+    if rhs.stride(0) > 1 and rhs.stride(1) > 1:
+        trans_B = True
 
-        stride_am, stride_ak = a.stride(0), a.stride(1)
-        stride_bk, stride_bn = b.stride(0), b.stride(1)
-
-        if trans_A:
-            stride_am, stride_ak = a.stride(1), a.stride(0)
-        if trans_B:
-            stride_bk, stride_bn = b.stride(1), b.stride(0) 
-
-        _sdd_kernel[grid](
-            a, b, c, M, N, K,
-            stride_am, stride_ak,
-            stride_bk, stride_bn,
-            c.stride(0), c.stride(1),
-            topo.row_indices, topo.column_indices,
-            GROUP_M=8, ACC_TYPE=ACC_TYPE
-            )
-                
-        return Matrix(
-            size = topo.size(), 
-            data = c.reshape((-1, topo.blocking, topo.blocking)),
-            row_indices = topo.row_indices,
-            column_indices = topo.column_indices,
-            offsets = topo.offsets,
-            column_indices_t = topo.column_indices_t,
-            offsets_t = topo.offsets_t,
-            block_offsets_t = topo.block_offsets_t
-            )
-
-    @staticmethod
-    def forward(ctx, a, b, topo):
-        return _sdd._call(a, b, topo)
-
-class _dsd(torch.autograd.Function):
-
-    @staticmethod
-    def _call(a, b):
-        device = a.device
-        trans_A = False
-        trans_B = False
-
-        # handle non-contiguous inputs if necessary
-        if not a.is_contiguous():
-            trans_A = True
-        if b.stride(0) > 1 and b.stride(1) > 1:
-            trans_B = True
-
-        # checks constraints
-        assert a.shape[1] == b.shape[0], "incompatible dimensions"
-        M, K = a.shape
-        _, N = b.shape
-        
-        # allocates output
-        c = torch.empty((M, N), device=device, dtype=a.dtype, requires_grad=True)
-        
-        # accumulator types
-        ACC_TYPE = tl.float32 if a.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
-
-        stride_am, stride_ak = a.data.stride(1), a.data.stride(2)
-        stride_bk, stride_bn = b.stride(0), b.stride(1)
-        row_indices, column_indices  = a.row_indices, a.column_indices
-        offsets, block_offsets_t = a.offsets, a.block_offsets_t
-
-        # launch kernel
-        grid = lambda META: (triton.cdiv(M, META['BLOCK_M']), triton.cdiv(N, META['BLOCK_N']))
-
-        debug = torch.empty((4 * 8), device=device)
-        if trans_A:
-            stride_am, stride_ak = a.data.stride(2), a.data.stride(1)
-            column_indices, offsets = a.column_indices_t, a.offsets_t
-
-        if trans_B:
-            stride_bk, stride_bn = b.stride(1), b.stride(0) 
-
-        binary = _dsd_kernel[grid](
-            a.data, b, c, M, N, K,
-            stride_am, stride_ak,
-            stride_bk, stride_bn,
-            c.stride(0), c.stride(1),
-            row_indices, column_indices, offsets,
-            block_offsets_t, trans_A, trans_B,
-            GROUP_M=128, ACC_TYPE=ACC_TYPE
-        )
-        # print(debug)
-        return c
-
-    @staticmethod
-    def forward(ctx, a, b, topo=None):
-        return _dsd._call(a, b)
-
-class _dds(torch.autograd.Function):
+    # checks constraints
+    assert shape[1] == rhs.shape[0], "incompatible dimensions"
+    M, K = shape
+    _, N = rhs.shape
     
-    @staticmethod
-    def _call(a, b):
+    # accumulator types
+    ACC_TYPE = tl.float32 if rhs.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
 
-        device = a.device
-        trans_A = False
-        trans_B = False
+    stride_am, stride_ak = data.stride(1), data.stride(2)
+    stride_bk, stride_bn = rhs.stride(0), rhs.stride(1)
+    a_column_indices  = column_indices
+    a_offsets = offsets
 
-        # handle non-contiguous inputs if necessary
-        if not b.is_contiguous():
-            trans_B = True
-        if a.stride(0) > 1 and a.stride(1) > 1:
-            trans_A = True
+    # launch kernel
+    grid = lambda META: (triton.cdiv(M, META['BLOCK_M']), triton.cdiv(N, META['BLOCK_N']))
 
-        # checks constraints
-        assert a.shape[1] == b.shape[0], "incompatible dimensions"
-        M, K = a.shape
-        _, N = b.shape
-        
-        # allocates output
-        c = torch.empty((M, N), device=device, dtype=a.dtype, requires_grad=True)
-        
-        # accumulator types
-        ACC_TYPE = tl.float32 if a.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
+    if trans_A:
+        stride_am, stride_ak = data.stride(2), data.stride(1)
+        a_column_indices, a_offsets = column_indices_t, offsets_t
 
-        stride_am, stride_ak = a.stride(0), a.data.stride(1)
-        stride_bk, stride_bn = b.data.stride(1), b.data.stride(2)
-        row_indices, column_indices  = b.row_indices, b.column_indices_t
-        offsets, block_offsets_t = b.offsets_t, b.block_offsets_t
+    if trans_B:
+        stride_bk, stride_bn = rhs.stride(1), rhs.stride(0) 
 
-        # launch kernel
-        grid = lambda META: (triton.cdiv(M, META['BLOCK_M']), triton.cdiv(N, META['BLOCK_N']))
+    _dsd_kernel[grid](
+        data.data, rhs, out, M, N, K,
+        stride_am, stride_ak,
+        stride_bk, stride_bn,
+        out.stride(0), out.stride(1),
+        row_indices, a_column_indices, a_offsets,
+        block_offsets_t, trans_A, trans_B,
+        GROUP_M=128, ACC_TYPE=ACC_TYPE
+    )
+    # return out
 
-        debug = torch.empty((4 * 8), device=device)
-        if trans_B:
-            stride_bk, stride_bn = b.data.stride(2), b.data.stride(1)
-            column_indices, offsets = b.column_indices, b.offsets
+def dds(lhs,
+        shape,
+        data,
+        offsets,
+        row_indices,
+        column_indices,
+        offsets_t,
+        column_indices_t,
+        block_offsets_t,
+        transpose_b,
+        out
+    ):
 
-        if trans_A:
-            stride_am, stride_ak = a.stride(1), a.stride(0) 
+    device = lhs.device
+    trans_B = transpose_b
+    trans_A = False
 
-        binary = _dds_kernel[grid](
-            a, b.data, c, M, N, K,
-            stride_am, stride_ak,
-            stride_bk, stride_bn,
-            c.stride(0), c.stride(1),
-            row_indices, column_indices, offsets,
-            block_offsets_t, trans_A, trans_B,
-            GROUP_M=128, ACC_TYPE=ACC_TYPE
+    if lhs.stride(0) > 1 and lhs.stride(1) > 1:
+        trans_A = True
+
+    # checks constraints
+    assert lhs.shape[1] == shape[0], "incompatible dimensions"
+    M, K = lhs.shape
+    _, N = shape
+    
+    # accumulator types
+    ACC_TYPE = tl.float32 if lhs.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
+
+    stride_am, stride_ak = lhs.stride(0), lhs.stride(1)
+    stride_bk, stride_bn = data.stride(1), data.stride(2)
+    b_column_indices  = column_indices_t
+    b_offsets = offsets_t
+
+    # launch kernel
+    grid = lambda META: (triton.cdiv(M, META['BLOCK_M']), triton.cdiv(N, META['BLOCK_N']))
+
+    if trans_A:
+        stride_am, stride_ak = lhs.stride(1), lhs.stride(0) 
+    if trans_B:
+        stride_bk, stride_bn = data.stride(2), data.stride(1)
+        b_column_indices, b_offsets = column_indices, offsets
+
+    _dds_kernel[grid](
+        lhs, data, out, M, N, K,
+        stride_am, stride_ak,
+        stride_bk, stride_bn,
+        out.stride(0), out.stride(1),
+        row_indices, b_column_indices, b_offsets,
+        block_offsets_t, trans_A, trans_B,
+        GROUP_M=128, ACC_TYPE=ACC_TYPE
+    )
+
+def sdd(lhs,
+        rhs,
+        shape,
+        out,
+        offsets,
+        row_indices,
+        column_indices
+    ):
+
+    device = out.device
+    trans_A = False
+    trans_B = False
+
+    if lhs.stride(0) > 1 and lhs.stride(1) > 1:
+        trans_A = True
+    if rhs.stride(0) > 1 and rhs.stride(1) > 1:
+        trans_B = True
+
+    # checks constraints
+    assert lhs.shape[1] == rhs.shape[0], "incompatible dimensions"
+    M, K = lhs.shape
+    _, N = rhs.shape
+
+    # accumulator types
+    ACC_TYPE = tl.float32 if out.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
+
+    # launch kernel
+    nnz_blocks = len(row_indices)
+    grid = lambda META: (nnz_blocks,)
+
+    stride_am, stride_ak = lhs.stride(0), lhs.stride(1)
+    stride_bk, stride_bn = rhs.stride(0), rhs.stride(1)
+
+    if trans_A:
+        stride_am, stride_ak = lhs.stride(1), lhs.stride(0)
+    if trans_B:
+        stride_bk, stride_bn = rhs.stride(1), rhs.stride(0) 
+
+    _sdd_kernel[grid](
+        lhs, rhs, out, M, N, K,
+        stride_am, stride_ak,
+        stride_bk, stride_bn,
+        out.stride(1), out.stride(2),
+        row_indices, column_indices,
+        GROUP_M=128, ACC_TYPE=ACC_TYPE
         )
-        # print(debug)
-        return c
-
-    @staticmethod
-    def forward(ctx, a, b, topo=None):
-        return _dds._call(a, b)
-
-sdd = _sdd.apply
-dsd = _dsd.apply
-dds = _dds.apply
-
-def matmul(mode, a, b, topo=None):
-    if mode not in ['sdd', 'dsd', 'dds']:
-        raise NotImplementedError(f'Mode {mode} is not implemented. Supported modes are: sdd, dsd, dds')
-    fn = {'sdd': _sdd.apply, 'dsd':_dsd.apply, 'dds':_dds.apply}
-    if mode == 'sdd':
-        assert topo is not None, 'Mode "sdd" requires topo parameter'    
-    fn[mode](a, b, topo)
-
-
