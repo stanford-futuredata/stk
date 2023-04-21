@@ -4,9 +4,8 @@ from absl.testing import parameterized
 import stk
 import numpy as np
 import torch
-import triton_kernels
 from megablocks import ops, benchmark_util
-import triton
+import triton_matmul
 
 def benchmark_function(fn, iterations=100, warmup=10):
     # Warmup iterations.
@@ -130,7 +129,7 @@ class MatmulBenchmark(parameterized.TestCase):
         log_benchmark("0::Fwd::SDD::NT::STK", arguments, mean_t, std_t,
                       x.numel() * fhs * 2)
 
-        benchmark = lambda: triton_kernels.sdd(x, w, topo)
+        benchmark = lambda: triton_matmul.sdd(x, w, topo)
         mean_t, std_t = benchmark_function(benchmark)
         log_benchmark("0::Fwd::SDD::NT::Triton", arguments, mean_t, std_t,
                         x.numel() * fhs * 2)
@@ -154,7 +153,7 @@ class MatmulBenchmark(parameterized.TestCase):
         log_benchmark("0::GradX::DSD::NN::STK", arguments, mean_t, std_t,
                       x.numel() * fhs * 2)
         
-        benchmark = lambda: triton_kernels.dsd(topo, w)
+        benchmark = lambda: triton_matmul.dsd(topo, w)
         mean_t, std_t = benchmark_function(benchmark)
         log_benchmark("0::GradX::DSD::NN::Triton", arguments, mean_t, std_t,
                       x.numel() * fhs * 2)
