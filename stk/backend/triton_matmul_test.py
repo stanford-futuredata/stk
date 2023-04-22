@@ -36,23 +36,23 @@ _LINEAR_OP_TESTS = (
 )
 
 
-def _dense_and_sparse(rows, cols, sparsity, blocking, std=0.1):
+def _dense_and_sparse(rows, cols, sparsity, blocking, dtype=torch.float16, std=0.1):
     mask = stk.random.dense_mask(rows, cols, sparsity, blocking)
-    dense = (torch.randn(rows, cols) * std * mask).type(torch.float16)
+    dense = (torch.randn(rows, cols) * std * mask).type(dtype)
     sparse = stk.ops.to_sparse(dense, blocking)
     cuda_device = torch.device("cuda")
     return (dense.to(cuda_device).requires_grad_(True),
             sparse.to(cuda_device).requires_grad_(True))
 
 
-def _dense(rows, cols, std=0.1):
+def _dense(rows, cols, dtype=torch.float16, std=0.1):
     cuda_device = torch.device("cuda")
-    out = (torch.randn(rows, cols) * std).type(torch.float16)
+    out = (torch.randn(rows, cols) * std).type(dtype)
     return out.to(cuda_device).requires_grad_(True)
 
 
-def _dense_2x(rows, cols):
-    a = _dense(rows, cols)
+def _dense_2x(rows, cols, dtype=torch.float16):
+    a = _dense(rows, cols, dtype=dtype)
     return a, a.detach().requires_grad_(True)
 
 

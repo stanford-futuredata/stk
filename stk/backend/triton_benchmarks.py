@@ -174,7 +174,7 @@ class MatmulBenchmark(parameterized.TestCase):
         log_benchmark("0::GradW::DSD::TN::STK", arguments, mean_t, std_t,
                       x.numel() * fhs * 2)
 
-        benchmark = lambda: triton_kernels.dsd(topo, x)
+        benchmark = lambda: triton_matmul.dsd(topo, x)
         mean_t, std_t = benchmark_function(benchmark)
         log_benchmark("0::GradW::DSD::TN::Triton", arguments, mean_t, std_t,
                       x.numel() * fhs * 2)
@@ -195,7 +195,7 @@ class MatmulBenchmark(parameterized.TestCase):
         log_benchmark("1::Fwd::DSD::NN::STK", arguments, mean_t, std_t,
                       x.nnz * hs * 2)
 
-        benchmark = lambda: triton_kernels.dsd(x, w)
+        benchmark = lambda: triton_matmul.dsd(x, w)
         mean_t, std_t = benchmark_function(benchmark)
         log_benchmark("1::Fwd::DSD::NN::Triton", arguments, mean_t, std_t,
                       x.nnz * hs * 2)
@@ -219,7 +219,7 @@ class MatmulBenchmark(parameterized.TestCase):
         log_benchmark("1::GradW::DSD::TN::STK", arguments, mean_t, std_t,
                       x.nnz * hs * 2)
 
-        benchmark = lambda: triton_kernels.dsd(x, out)
+        benchmark = lambda: triton_matmul.dsd(x, out)
         mean_t, std_t = benchmark_function(benchmark)
         log_benchmark("1::GradW::DSD::TN::Triton", arguments, mean_t, std_t,
                       x.nnz * hs * 2)
@@ -244,7 +244,7 @@ class MatmulBenchmark(parameterized.TestCase):
         log_benchmark("1::GradX::DDS::NN::STK", arguments, mean_t, std_t,
                       x.nnz * hs * 2)
 
-        benchmark = lambda: triton_kernels.dds(w, x)
+        benchmark = lambda: triton_matmul.dds(w, x)
         mean_t, std_t = benchmark_function(benchmark)
         log_benchmark("1::GradX::DDS::NN::Triton", arguments, mean_t, std_t,
                       x.nnz * hs * 2)
