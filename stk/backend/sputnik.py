@@ -1,4 +1,4 @@
-import sputnik_backend as backend
+import triton_kernels as backend
 from stk.backend.autocast import custom_fwd, custom_bwd
 import torch
 
