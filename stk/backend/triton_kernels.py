@@ -1,7 +1,7 @@
 import torch
 import triton
 import triton.language as tl
-from stk import Matrix
+
 
 @triton.autotune(
     configs=[
