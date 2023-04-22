@@ -79,7 +79,14 @@ setup(
         "Operating System :: Unix",
     ],
     packages=find_packages(),
-    ext_modules=ext_modules,
-    cmdclass={"build_ext": BuildExtension},
-    install_requires=["absl-py", "numpy", "torch"],
+    # ext_modules=ext_modules,
+    # cmdclass={"build_ext": BuildExtension},
+    install_requires=["absl-py", "numpy", "torch", "cmake"],
+    dependency_links=[
+        'https://github.com/openai/triton.git#egg=triton'
+    ],
+    setup_requires=[
+        'cmake'
+    ],
+    zip_safe=False,
 )
