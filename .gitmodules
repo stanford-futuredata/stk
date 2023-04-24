@@ -1,3 +1,6 @@
 [submodule "third_party/sputnik"]
 	path = third_party/sputnik
 	url = https://github.com/tgale96/sputnik.git
+[submodule "third_party/triton"]
+	path = third_party/triton
+	url = https://github.com/openai/triton.git
