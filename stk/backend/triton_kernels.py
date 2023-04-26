@@ -357,3 +357,18 @@ def sdd(lhs,
         row_indices, column_indices,
         GROUP_M=128, ACC_TYPE=ACC_TYPE
         )
+
+@triton.jit
+def _row_indices_kernel(offsets, out):
+    pid = tl.program_id(0)
+    row_offset = tl.load(offsets + pid)
+    nnz_blocks = tl.load(offsets + pid + 1) - row_offset
+    for nnz_block in range(nnz_blocks):
+        tl.store(out + row_offset + nnz_block, pid)
+
+def row_indices(
+    shape, data, offsets, column_indices, out
+):
+    block_rows = len(offsets) - 1
+    _row_indices_kernel[(block_rows, )](offsets, out)
+    

@@ -193,5 +193,10 @@ class LinearOpsTest(parameterized.TestCase):
         self.assertEqual(expected_grad.size()[1], grad.size()[1])
         self.assertTrue(allclose(grad, expected_grad))
 
+    def testRowIndices(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+        _, topo = _dense_and_sparse(m, n, sparsity, blocking)
+        row_indices = stk.ops.row_indices(topo.shape, topo.data, topo.offsets, topo.column_indices)
+        self.assertTrue(torch.equal(row_indices, topo.row_indices))
+
 if __name__ == '__main__':
     unittest.main()
