@@ -1,0 +1,11 @@
+name: run-tests
+on: [push]
+jobs:
+  train:
+    runs-on: [self-hosted, cml, gpu]
+    steps:
+      - uses: actions/checkout@v2
+      - name: cml_run
+        run: |
+          echo 'CI Setup Test' >> report.md
+          cml send-comment report.md
