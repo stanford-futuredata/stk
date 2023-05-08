@@ -5,9 +5,9 @@ jobs:
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v3
-      - name: Correctness Tests
+      - name: linear-ops-tests
         run: |
           echo 'Setup...'
-	  python setup.py install --prefix ~/.local
-	  echo 'Run tests...'
+          python setup.py install --prefix ~/.local
+          echo 'Run tests...'
           python stk/ops/linear_ops_test.py
