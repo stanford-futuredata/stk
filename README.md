@@ -12,10 +12,6 @@ stk.ops.dsd: dense = op(sparse) x op(dense)
 stk.ops.dds: dense = op(dense) x op(sparse)
 stk.ops.sdd: sparse = op(dense) x op(dense)
 
-stk.ops.ssd: sparse = op(sparse) x op(dense) [Experimental]
-stk.ops.sds: sparse = op(dense) x op(sparse) [Experimental]
-stk.ops.dss: dense = op(sparse) x op(sparse) [Experimental]
-
 [Sparse Matrix Conversion]
 stk.ops.to_sparse: torch.Tensor => stk.Matrix
 stk.ops.to_dense: stk.Matrix => torch.Tensor
