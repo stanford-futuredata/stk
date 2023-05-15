@@ -1,5 +1,5 @@
 import unittest
-
+import itertools
 import numpy as np
 import torch
 from absl.testing import parameterized
@@ -17,8 +17,7 @@ def allclose(x, y, pct=0.25):
 
 
 # An assortment of problems designed to make sure
-# the bindings are operating correctly. Extensive
-# kernel tests done through Sputnik.
+# the bindings are operating correctly.
 _MATRIX_SIZES = (
     (128, 128, 128, 0.0),
     (256, 256, 256, 0.5),
@@ -48,30 +47,30 @@ _DTYPE = (
 )
 
 def _generate_testcases():
-    testcases = itertools.product(_MATRIX_SIZES, _TRANSPOSE)
-    testcases = [(*size, *trans, 128) for 
-        (size, trans) in testcases]
+    testcases = itertools.product(_MATRIX_SIZES, _TRANSPOSE, _DTYPE)
+    testcases = [(*size, *trans, 128, dtype) for 
+        (size, trans, dtype) in testcases]
     return testcases
 
 _LINEAR_OP_TESTS = _generate_testcases()
 
-def _dense_and_sparse(rows, cols, sparsity, blocking, std=0.1):
+def _dense_and_sparse(rows, cols, sparsity, blocking, dtype, std=0.1):
     mask = stk.random.dense_mask(rows, cols, sparsity, blocking)
-    dense = (torch.randn(rows, cols) * std * mask).type(torch.float16)
+    dense = (torch.randn(rows, cols) * std * mask).type(dtype)
     sparse = stk.ops.to_sparse(dense, blocking)
     cuda_device = torch.device("cuda")
     return (dense.to(cuda_device).requires_grad_(True),
             sparse.to(cuda_device).requires_grad_(True))
 
 
-def _dense(rows, cols, std=0.1):
+def _dense(rows, cols, dtype, std=0.1):
     cuda_device = torch.device("cuda")
-    out = (torch.randn(rows, cols) * std).type(torch.float16)
+    out = (torch.randn(rows, cols) * std).type(dtype)
     return out.to(cuda_device).requires_grad_(True)
 
 
-def _dense_2x(rows, cols):
-    a = _dense(rows, cols)
+def _dense_2x(rows, cols, dtype):
+    a = _dense(rows, cols, dtype)
     return a, a.detach().requires_grad_(True)
 
 
@@ -100,12 +99,12 @@ def _mask(x, mask):
 @parameterized.parameters(*_LINEAR_OP_TESTS)
 class LinearOpsTest(parameterized.TestCase):
 
-    def testLinearOps_Dsd(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+    def testLinearOps_Dsd(self, m, k, n, sparsity, trans_a, trans_b, blocking, dtype):
         # Construct the operands.
         a_shape = (k, m) if trans_a else (m, k)
-        a_dense, a = _dense_and_sparse(*a_shape, sparsity, blocking)
+        a_dense, a = _dense_and_sparse(*a_shape, sparsity, blocking, dtype)
         b_shape = (n, k) if trans_b else (k, n)
-        b, bcp = _dense_2x(*b_shape)
+        b, bcp = _dense_2x(*b_shape, dtype)
 
         # Execute the matmul.
         out = _with_transpose(stk.ops.dsd, a, b, trans_a, trans_b)
@@ -137,12 +136,12 @@ class LinearOpsTest(parameterized.TestCase):
         self.assertEqual(expected_grad.size()[1], grad.size()[1])
         self.assertTrue(allclose(grad, expected_grad))
 
-    def testLinearOps_Dds(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+    def testLinearOps_Dds(self, m, k, n, sparsity, trans_a, trans_b, blocking, dtype):
         # Construct the operands.
         a_shape = (k, m) if trans_a else (m, k)
-        a, acp = _dense_2x(*a_shape)
+        a, acp = _dense_2x(*a_shape, dtype)
         b_shape = (n, k) if trans_b else (k, n)
-        b_dense, b = _dense_and_sparse(*b_shape, sparsity, blocking)
+        b_dense, b = _dense_and_sparse(*b_shape, sparsity, blocking, dtype)
 
         # Execute the matmul.
         out = _with_transpose(stk.ops.dds, a, b, trans_a, trans_b)
@@ -174,13 +173,13 @@ class LinearOpsTest(parameterized.TestCase):
         self.assertEqual(expected_grad.size()[1], grad.size()[1])
         self.assertTrue(allclose(grad, expected_grad))
 
-    def testLinearOps_Sdd(self, m, k, n, trans_a, trans_b, blocking, sparsity):
+    def testLinearOps_Sdd(self, m, k, n, sparsity, trans_a, trans_b, blocking, dtype):
         # Construct the operands.
         a_shape = (k, m) if trans_a else (m, k)
-        a, acp = _dense_2x(*a_shape)
+        a, acp = _dense_2x(*a_shape, dtype)
         b_shape = (n, k) if trans_b else (k, n)
-        b, bcp = _dense_2x(*b_shape)
-        _, topo = _dense_and_sparse(m, n, sparsity, blocking)
+        b, bcp = _dense_2x(*b_shape, dtype)
+        _, topo = _dense_and_sparse(m, n, sparsity, blocking, dtype)
 
         # Execute the matmul.
         out = _sparse_out_with_transpose(stk.ops.sdd, a, b, topo, trans_a, trans_b)
