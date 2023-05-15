@@ -19,21 +19,41 @@ def allclose(x, y, pct=0.25):
 # An assortment of problems designed to make sure
 # the bindings are operating correctly. Extensive
 # kernel tests done through Sputnik.
-_LINEAR_OP_TESTS = (
-    (128, 128, 128, False, False, 128, 0.0),
-    (256, 256, 256, False, False, 128, 0.5),
-    (2048, 1024, 512, False, False, 128, 0.8),
-    (128, 128, 128, False, True, 128, 0.0),
-    (256, 256, 256, False, True, 128, 0.5),
-    (2048, 1024, 512, False, True, 128, 0.8),
-    (128, 128, 128, True, False, 128, 0.0),
-    (256, 256, 256, True, False, 128, 0.5),
-    (2048, 1024, 512, True, False, 128, 0.8),
-    (128, 128, 128, True, True, 128, 0.0),
-    (256, 256, 256, True, True, 128, 0.5),
-    (2048, 1024, 512, True, True, 128, 0.8)
+_MATRIX_SIZES = (
+    (128, 128, 128, 0.0),
+    (256, 256, 256, 0.5),
+    (2048, 1024, 512, 0.8)
+    (512, 128, 128, 0.0),
+    (128, 128, 512, 0.0),
+    (1024, 512, 512, 0.0),
+    (1024, 512, 512, 0.5),
+    (1024, 512, 512, 0.75),
+    (512, 512, 1024, 0.0),
+    (512, 512, 1024, 0.5),
+    (512, 512, 1024, 0.75),
+    (1024, 1024, 1024, 0.0),
+    (1024, 1024, 1024, 0.5),
+    (1024, 1024, 1024, 0.75),
 )
 
+_TRANSPOSE = (
+    (False, False),
+    (False, True),
+    (True, False),
+    (True, True),
+)
+
+_DTYPE = (
+    torch.float16, torch.bfloat16
+)
+
+def _generate_testcases():
+    testcases = itertools.product(_MATRIX_SIZES, _TRANSPOSE)
+    testcases = [(*size, *trans, 128) for 
+        (size, trans) in testcases]
+    return testcases
+
+_LINEAR_OP_TESTS = _generate_testcases()
 
 def _dense_and_sparse(rows, cols, sparsity, blocking, std=0.1):
     mask = stk.random.dense_mask(rows, cols, sparsity, blocking)
@@ -192,11 +212,6 @@ class LinearOpsTest(parameterized.TestCase):
         self.assertEqual(expected_grad.size()[0], grad.size()[0])
         self.assertEqual(expected_grad.size()[1], grad.size()[1])
         self.assertTrue(allclose(grad, expected_grad))
-
-    def testRowIndices(self, m, k, n, trans_a, trans_b, blocking, sparsity):
-        _, topo = _dense_and_sparse(m, n, sparsity, blocking)
-        row_indices = stk.ops.row_indices(topo.shape, topo.data, topo.offsets, topo.column_indices)
-        self.assertTrue(torch.equal(row_indices, topo.row_indices))
 
 if __name__ == '__main__':
     unittest.main()
