@@ -81,14 +81,12 @@ def _dsd_kernel(A, B, C, M, N, K,
     # pointers to sparse matrix
     rm =  tl.arange(0, BLOCK_M)
     rak = tl.arange(0, BLOCK_K)
-    # rm = tl.max_contiguous(tl.multiple_of(rm % M, BLOCK_M), BLOCK_M)
 
     A += (rm[:, None] * stride_am + rak[None, :] * stride_ak)
 
     # pointers to dense matrix
     rn = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
     rbk = tl.arange(0, BLOCK_K)
-    # rn = tl.max_contiguous(tl.multiple_of(rn % N, BLOCK_N), BLOCK_N)
     B += (rbk[:, None] * stride_bk + rn[None, :] * stride_bn)
 
     # do matrix multiplication
@@ -100,14 +98,9 @@ def _dsd_kernel(A, B, C, M, N, K,
     bk_sub_incr = BLOCK_K * stride_bk
     bk_block_incr = BLOCK_SIZE * stride_bk
 
-    # ak_sub_incr = tl.multiple_of(ak_sub_incr, BLOCK_K)
-    # bk_sub_incr = tl.multiple_of(bk_sub_incr, BLOCK_K)
-    # bk_block_incr = tl.multiple_of(bk_block_incr, BLOCK_SIZE)
-
     for k in range(nsub_blocks * (end_inx - start_inx)):
         sub_block_inx = k % nsub_blocks
         block_inx = k // nsub_blocks
-        # mask = sub_block_inx == 0
 
         if trans_A:
             ptr_A = A + tl.load(block_offsets_t + start_inx + block_inx) * BLOCK_ELEMENTS + sub_block_inx * ak_sub_incr
@@ -115,10 +108,6 @@ def _dsd_kernel(A, B, C, M, N, K,
             ptr_A = A + (start_inx + block_inx) * BLOCK_ELEMENTS + sub_block_inx * ak_sub_incr
 
         ptr_B = B + tl.load(column_indices + start_inx + block_inx) * bk_block_incr + sub_block_inx * bk_sub_incr
-
-        # tl.debug_barrier()
-        # prev_offset_b = offset_b
-        # tl.store(debug + pid * 8 + k, offset_b)
 
         a = tl.load(ptr_A)
         b = tl.load(ptr_B)
@@ -129,9 +118,6 @@ def _dsd_kernel(A, B, C, M, N, K,
     cm = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
     cn = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
 
-    # if trans_C:
-    #     C = C + (cn[:, None] * stride_cm + cm[None, :] * stride_cn)
-    # else:
     C = C + (cm[:, None] * stride_cm + cn[None, :] * stride_cn)
     tl.store(C, acc, mask=True)
 
