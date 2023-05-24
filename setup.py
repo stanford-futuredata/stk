@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 from setuptools import setup, find_packages
-import subprocess
 import torch
 
 if not torch.cuda.is_available():
