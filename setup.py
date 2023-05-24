@@ -8,9 +8,6 @@ if not torch.cuda.is_available():
     if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None:
         os.environ["TORCH_CUDA_ARCH_LIST"] = "8.0"
 
-# NOTE: Initialize all submodules recursively prior to build.
-subprocess.call(["git", "submodule", "update", "--init", "--recursive"])
-
 setup(
     name="stanford-stk",
     version="0.0.4",
