@@ -28,4 +28,11 @@ RUN ./bin/installdependencies.sh
 COPY entrypoint.sh entrypoint.sh
 RUN chmod +x entrypoint.sh
 USER ci
+
+ARG GITHUB_REPO
+ARG ACCESS_TOKEN
+
+RUN cd /home/ci/actions-runner
+RUN ./config.sh --url ${GITHUB_REPO} --pat ${ACCESS_TOKEN}
+
 ENTRYPOINT ["./entrypoint.sh"]
