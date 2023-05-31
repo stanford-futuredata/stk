@@ -223,6 +223,33 @@ class MatmulBenchmark(parameterized.TestCase):
         mean_t, std_t = benchmark_function(benchmark)
         log_benchmark("1::GradW::DSD::TN::Triton", arguments, mean_t, std_t,
                       x.nnz * hs * 2)
+    
+    @parameterized.parameters(*_MATMUL_TESTS)
+    def testFFN_Linear1_GradX_SDD_NT(self, sl, hs, fhs, ne):
+        x, padded_bins = self.build_input_matrix(sl, hs, ne)
+        w = self.build_weight_matrix(ne, hs, fhs).t().contiguous()
+        x = self.build_sparse_matrix(x, padded_bins, fhs, ne)
+        out = stk.ops.dsd(x, w)
+        w = transpose_view(w)
+
+        arguments = {
+            "sequence_length": sl,
+            "hidden_size": hs,
+            "ffn_hidden_size": fhs,
+            "num_experts": ne
+        }
+
+        benchmark = lambda: stk.ops.sdd(out, w, x)
+        mean_t, std_t = benchmark_util.benchmark_function(benchmark)
+        
+        log_benchmark("1::GradX::SDD::NT::STK", arguments, mean_t, std_t,
+                      x.nnz * hs * 2)
+        
+        benchmark = lambda: triton_matmul.sdd(out, w, x)
+        mean_t, std_t = benchmark_function(benchmark)
+        log_benchmark("1::GradX::SDD::NT::Triton", arguments, mean_t, std_t,
+                      x.nnz * hs * 2)
+
 
     ## DDS Benchmarks
     @parameterized.parameters(*_MATMUL_TESTS)
