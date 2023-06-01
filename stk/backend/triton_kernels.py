@@ -76,8 +76,6 @@ def _dsd_kernel(A, B, C, M, N, K,
     start_inx = tl.load(offsets + pid_m)
     end_inx = tl.load(offsets + pid_m + 1)
 
-    pid = pid_m * 2 + pid_n
-
     # pointers to sparse matrix
     rm =  tl.arange(0, BLOCK_M)
     rak = tl.arange(0, BLOCK_K)

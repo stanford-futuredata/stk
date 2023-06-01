@@ -2,7 +2,7 @@
 
 A light-weight PyTorch library for block-sparse matrices and block-sparse matrix multiplication.
 
-STK is built around a core sparse matrix class ([stk.Matrix](stk/matrix.py)), which uses a hybrid [blocked-CSR-COO](https://arxiv.org/abs/2211.15841) sparse matrix encoding to enable efficient matrix products with sparse inputs and outputs in transposed or non-transposed order. The library supports the following operations with `block_size=128`:
+STK is built around a core sparse matrix class ([stk.Matrix](stk/matrix.py)), which uses a hybrid [blocked-CSR-COO](https://arxiv.org/abs/2211.15841) sparse matrix encoding to enable efficient matrix products with sparse inputs and outputs in transposed or non-transposed order. The library supports the following operations:
 
 ```
 op: transpose or non-transpose
