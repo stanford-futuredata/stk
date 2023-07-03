@@ -1,0 +1,38 @@
+FROM nvcr.io/nvidia/pytorch:23.01-py3
+
+RUN DEBIAN_FRONTEND=noninteractive
+
+# Install Triton version:2.1.0
+RUN pip uninstall -y triton
+WORKDIR /tmp/install
+RUN git clone https://github.com/openai/triton.git
+RUN pip install cmake
+WORKDIR /tmp/install/triton/python
+RUN pip install -e .
+
+# Installl github actions-runner and dependencies
+ENV TZ=US/Pacific
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN useradd -m ci
+RUN cd /home/ci && mkdir actions-runner && cd actions-runner
+
+WORKDIR /home/ci/actions-runner
+
+RUN curl -o actions-runner-linux-x64-2.304.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.304.0/actions-runner-linux-x64-2.304.0.tar.gz
+RUN tar xzf ./actions-runner-linux-x64-2.304.0.tar.gz
+
+RUN chown -R ci ~ci && /home/ci/actions-runner/bin/installdependencies.sh
+RUN ./bin/installdependencies.sh
+
+COPY entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
+USER ci
+
+ARG GITHUB_REPO
+ARG ACCESS_TOKEN
+
+RUN cd /home/ci/actions-runner
+RUN ./config.sh --url ${GITHUB_REPO} --pat ${ACCESS_TOKEN}
+
+ENTRYPOINT ["./entrypoint.sh"]

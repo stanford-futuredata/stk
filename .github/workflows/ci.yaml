@@ -1,0 +1,15 @@
+name: run-tests
+on: [push]
+jobs:
+  linear_tests:
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Correctness tests
+        run: |
+          echo 'Setup...'
+          python setup.py install --prefix ~/.local
+          echo 'Run tests...'
+          python stk/ops/linear_ops_test.py
+          python stk/ops/matrix_ops_test.py
+          python stk/random/random_ops_test.py
