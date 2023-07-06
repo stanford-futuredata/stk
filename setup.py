@@ -1,15 +1,9 @@
-import os
-from pathlib import Path
 from setuptools import setup, find_packages
 import torch
 
-if not torch.cuda.is_available():
-    if os.environ.get("TORCH_CUDA_ARCH_LIST", None) is None:
-        os.environ["TORCH_CUDA_ARCH_LIST"] = "8.0"
-
 setup(
     name="stanford-stk",
-    version="0.0.4",
+    version="0.0.5",
     author="Trevor Gale",
     author_email="tgale@stanford.edu",
     description="Sparse Toolkit",
@@ -22,5 +16,11 @@ setup(
         "Operating System :: Unix",
     ],
     packages=find_packages(),
-    install_requires=["absl-py", "numpy", "torch"],
+    install_requires=[
+        "absl-py",
+        "numpy",
+        "torch",
+        # TODO(tgale): Update this to a stable Triton release once the software pipelining feature is supported.
+        "triton @ git+https://github.com/openai/triton.git@787cdff#egg=triton&subdirectory=python"
+    ],
 )
