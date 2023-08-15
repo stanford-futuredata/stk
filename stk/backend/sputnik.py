@@ -247,7 +247,6 @@ class SDD(torch.autograd.Function):
         ctx.save_for_backward(
             lhs,
             rhs,
-            data,
             offsets,
             row_indices,
             column_indices,
@@ -257,8 +256,8 @@ class SDD(torch.autograd.Function):
         ctx.shape = shape
         out = torch.empty(
             data.shape,
-            dtype=data.dtype,
-            device=data.device)
+            dtype=lhs.dtype,
+            device=lhs.device)
         backend.sdd(lhs,
                     rhs,
                     shape,
@@ -272,7 +271,7 @@ class SDD(torch.autograd.Function):
     @custom_bwd
     def backward(ctx, dy):
         lhs, rhs = ctx.saved_tensors[:2]
-        dy = (ctx.shape, dy) + ctx.saved_tensors[3:]
+        dy = (ctx.shape, dy) + ctx.saved_tensors[2:]
         trans_a = _is_transposed(lhs)
         trans_b = _is_transposed(rhs)
 
