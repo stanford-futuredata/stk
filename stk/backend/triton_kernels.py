@@ -28,18 +28,37 @@ def _sdd_kernel(A, B, C, M, N, K,
     ram = tl.max_contiguous(tl.multiple_of(rm % M, BLOCK_M), BLOCK_M)
     rbn = tl.max_contiguous(tl.multiple_of(rn % N, BLOCK_N), BLOCK_N)
     rk = tl.arange(0, BLOCK_K)
-    # pointers
-    A = A + (ram[:, None] * stride_am + rk[None, :] * stride_ak)
-    B = B + (rk[:, None] * stride_bk + rbn[None, :] * stride_bn)
-    # do matrix multiplication
+
+    # Input block pointers.
+    A = tl.make_block_ptr(
+        base=A,
+        shape=(M, K),
+        strides=(stride_am, stride_ak),
+        offsets=(pid_m * BLOCK_M, 0),
+        block_shape=(BLOCK_M, BLOCK_K),
+        order=(1, 0)
+    )
+    B = tl.make_block_ptr(
+        base=B,
+        shape=(K, N),
+        strides=(stride_bk, stride_bn),
+        offsets=(0, pid_n * BLOCK_N),
+        block_shape=(BLOCK_K, BLOCK_N),
+        order=(1, 0)
+    )
+
+    # Matmul main loop.
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=ACC_TYPE)
     for k in range(0, tl.cdiv(K, BLOCK_K)):
         a = tl.load(A)
         b = tl.load(B)
+
         acc += tl.dot(a, b)
-        A += BLOCK_K * stride_ak
-        B += BLOCK_K * stride_bk
-    #Store to sparse matrix
+
+        A = tl.advance(A, [0, BLOCK_K])
+        B = tl.advance(B, [BLOCK_K, 0])
+
+    # Store to sparse matrix
     acc = acc.to(C.dtype.element_ty)
     BLOCK_ELEMENTS = BLOCK_SIZE * BLOCK_SIZE
     cm = tl.arange(0, BLOCK_M)
