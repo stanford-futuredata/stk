@@ -21,15 +21,9 @@ def _sdd_kernel(A, B, C, M, N, K,
             BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
             BLOCK_SIZE: tl.constexpr, GROUP_M: tl.constexpr, ACC_TYPE: tl.constexpr,
             ):
-    # matrix multiplication
     pid = tl.program_id(0)
     pid_m = tl.load(row_indices + pid)
     pid_n = tl.load(column_indices + pid)
-    rm = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
-    rn = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
-    ram = tl.max_contiguous(tl.multiple_of(rm % M, BLOCK_M), BLOCK_M)
-    rbn = tl.max_contiguous(tl.multiple_of(rn % N, BLOCK_N), BLOCK_N)
-    rk = tl.arange(0, BLOCK_K)
 
     # Input block pointers.
     A = tl.make_block_ptr(
@@ -354,7 +348,7 @@ def sdd(lhs,
     if trans_B:
         stride_bk, stride_bn = rhs.stride(1), rhs.stride(0)
 
-    _sdd_kernel[grid](
+    binary = _sdd_kernel[grid](
         lhs, rhs, out, M, N, K,
         stride_am, stride_ak,
         stride_bk, stride_bn,
@@ -362,6 +356,8 @@ def sdd(lhs,
         row_indices, column_indices,
         GROUP_M=128, ACC_TYPE=ACC_TYPE
         )
+    print(binary.asm['ptx'])
+    exit()
 
 @triton.jit
 def _row_indices_kernel(offsets, out):
