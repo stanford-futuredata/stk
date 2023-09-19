@@ -6,21 +6,22 @@ import triton.language as tl
 @triton.autotune(
     configs=[
         # Configs for A100.
-        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_SIZE': 128}, num_stages=4, num_warps=4),
+        # triton.Config({'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 32, 'BLOCK_SIZE': 128}, num_stages=4, num_warps=4),
         # Configs for H100.
+        triton.Config({'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_SIZE': 128}, num_stages=4, num_warps=4),
         triton.Config({'BLOCK_M': 128, 'BLOCK_N': 128, 'BLOCK_K': 64, 'BLOCK_SIZE': 128}, num_stages=7, num_warps=4),
     ],
     key=['M', 'N', 'K'],
 )
 @triton.jit
 def _sdd_kernel(A, B, C, M, N, K,
-            stride_am, stride_ak,
-            stride_bk, stride_bn,
-            stride_cm, stride_cn,
-            row_indices, column_indices,
-            BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
-            BLOCK_SIZE: tl.constexpr, GROUP_M: tl.constexpr, ACC_TYPE: tl.constexpr,
-            ):
+                stride_am, stride_ak,
+                stride_bk, stride_bn,
+                stride_cm, stride_cn,
+                row_indices, column_indices,
+                BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+                BLOCK_SIZE: tl.constexpr, GROUP_M: tl.constexpr, ACC_TYPE: tl.constexpr,
+                TRANS_A: tl.constexpr, TRANS_B: tl.constexpr):
     pid = tl.program_id(0)
     pid_m = tl.load(row_indices + pid)
     pid_n = tl.load(column_indices + pid)
@@ -32,7 +33,7 @@ def _sdd_kernel(A, B, C, M, N, K,
         strides=(stride_am, stride_ak),
         offsets=(pid_m * BLOCK_M, 0),
         block_shape=(BLOCK_M, BLOCK_K),
-        order=(1, 0)
+        order=(0, 1) if TRANS_A else (1, 0)
     )
     B = tl.make_block_ptr(
         base=B,
@@ -40,7 +41,7 @@ def _sdd_kernel(A, B, C, M, N, K,
         strides=(stride_bk, stride_bn),
         offsets=(0, pid_n * BLOCK_N),
         block_shape=(BLOCK_K, BLOCK_N),
-        order=(1, 0)
+        order=(0, 1) if TRANS_B else (1, 0)
     )
 
     # Matmul main loop.
@@ -61,6 +62,7 @@ def _sdd_kernel(A, B, C, M, N, K,
     cn = tl.arange(0, BLOCK_N)
     C = C + pid * BLOCK_ELEMENTS + (cm[:, None] * stride_cm + cn[None, :] * stride_cn)
     tl.store(C, acc, mask=True)
+
 
 @triton.autotune(
     configs=[
@@ -348,16 +350,16 @@ def sdd(lhs,
     if trans_B:
         stride_bk, stride_bn = rhs.stride(1), rhs.stride(0)
 
-    binary = _sdd_kernel[grid](
+    _sdd_kernel[grid](
         lhs, rhs, out, M, N, K,
         stride_am, stride_ak,
         stride_bk, stride_bn,
         out.stride(1), out.stride(2),
         row_indices, column_indices,
-        GROUP_M=128, ACC_TYPE=ACC_TYPE
+        GROUP_M=128, ACC_TYPE=ACC_TYPE,
+        TRANS_A=trans_A, TRANS_B=trans_B
         )
-    print(binary.asm['ptx'])
-    exit()
+
 
 @triton.jit
 def _row_indices_kernel(offsets, out):
