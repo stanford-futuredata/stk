@@ -4,15 +4,7 @@ import torch
 from absl.testing import parameterized
 
 import stk
-
-
-def allclose(x, y, pct=0.25):
-    mask = torch.isclose(x, y, rtol=5e-2)
-    pct_diff = (mask.numel() - mask.sum()) / mask.numel() * 100
-    if pct_diff > pct:
-        print("{:.2f}% of values not close.".format(pct_diff))
-        return False
-    return True
+from stk.ops.linear_ops_test import allclose, _dense_and_sparse
 
 _MATRIX_SIZES = (
     (128, 128, 0.0),
@@ -43,13 +35,6 @@ def _generate_testcases():
 
 _ELTWISE_OP_TESTS = _generate_testcases()
 
-def _dense_and_sparse(rows, cols, sparsity, blocking, dtype, std=0.1):
-    mask = stk.random.dense_mask(rows, cols, sparsity, blocking)
-    dense = (torch.randn(rows, cols) * std * mask).type(dtype)
-    sparse = stk.ops.to_sparse(dense, blocking)
-    cuda_device = torch.device("cuda")
-    return (dense.to(cuda_device).requires_grad_(True),
-            sparse.to(cuda_device).requires_grad_(True))
 def _dense_and_sparse_like(x, std=0.1):
     dense_data = torch.randn_like(x.data) * std
     sparse = stk.Matrix(x.size(),
@@ -63,11 +48,10 @@ def _dense_and_sparse_like(x, std=0.1):
     return (dense.to(cuda_device).requires_grad_(True),
             sparse.to(cuda_device).requires_grad_(True))
 
-
 @parameterized.parameters(_ELTWISE_OP_TESTS)
 class EltwiseOpsTest(parameterized.TestCase):
 
-    def testElemwiseMul(self, m, n, sparsity, blocking, dtype):
+    def testEltwiseMul(self, m, n, sparsity, blocking, dtype):
 
         a_dense, a = _dense_and_sparse(m, n, sparsity, blocking, dtype)
         b_dense, b = _dense_and_sparse_like(a)
@@ -101,8 +85,6 @@ class EltwiseOpsTest(parameterized.TestCase):
         self.assertEqual(expected_grad.size()[0], grad.size()[0])
         self.assertEqual(expected_grad.size()[1], grad.size()[1])
         self.assertTrue(allclose(grad, expected_grad))
-
-
 
 if __name__ == '__main__':
     unittest.main()
