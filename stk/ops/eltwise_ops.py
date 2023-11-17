@@ -11,7 +11,7 @@ def mul(a, b):
     """
     assert isinstance(a, Matrix)
     assert isinstance(b, Matrix)
-    assert a._size == b._size
+    assert a.size() == b.size()
 
     return Matrix(a.size(),
                   a.data * b.data,
