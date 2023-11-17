@@ -36,7 +36,7 @@ def _generate_testcases():
 _ELTWISE_OP_TESTS = _generate_testcases()
 
 def _dense_and_sparse_like(x, std=0.1):
-    dense_data = torch.randn_like(x.data) * std
+    dense_data = torch.randn_like(x.data, device=x.device) * std
     sparse = stk.Matrix(x.size(),
                         dense_data,
                         x.row_indices,
@@ -44,9 +44,8 @@ def _dense_and_sparse_like(x, std=0.1):
                         x.offsets)
     dense = stk.ops.to_dense(sparse)
 
-    cuda_device = torch.device("cuda")
-    return (dense.to(cuda_device).requires_grad_(True),
-            sparse.to(cuda_device).requires_grad_(True))
+    return (dense.requires_grad_(True),
+            sparse.requires_grad_(True))
 
 @parameterized.parameters(_ELTWISE_OP_TESTS)
 class EltwiseOpsTest(parameterized.TestCase):
@@ -66,24 +65,21 @@ class EltwiseOpsTest(parameterized.TestCase):
         # Validate the results.
         out = stk.ops.to_dense(out)
         self.assertEqual(out.dim(), 2)
-        self.assertEqual(expected_out.size()[0], out.size()[0])
-        self.assertEqual(expected_out.size()[1], out.size()[1])
+        self.assertEqual(expected_out.size(), out.size())
         self.assertTrue(allclose(out, expected_out)) 
 
         # LHS gradient.
         grad = stk.ops.to_dense(a.grad)
         expected_grad = a_dense.grad
         self.assertEqual(grad.dim(), 2)
-        self.assertEqual(expected_grad.size()[0], grad.size()[0])
-        self.assertEqual(expected_grad.size()[1], grad.size()[1])
+        self.assertEqual(expected_grad.size(), grad.size())
         self.assertTrue(allclose(grad, expected_grad))
 
         # RHS gradient.
         grad =  stk.ops.to_dense(b.grad)
         expected_grad = b_dense.grad
         self.assertEqual(grad.dim(), 2)
-        self.assertEqual(expected_grad.size()[0], grad.size()[0])
-        self.assertEqual(expected_grad.size()[1], grad.size()[1])
+        self.assertEqual(expected_grad.size(), grad.size())
         self.assertTrue(allclose(grad, expected_grad))
 
 if __name__ == '__main__':

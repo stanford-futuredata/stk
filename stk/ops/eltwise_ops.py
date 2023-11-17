@@ -1,13 +1,21 @@
 from stk.matrix import Matrix
 
 def mul(a, b):
-    """
-    Element-wise multiplication of matrices a and b.
+    """Performs element-wise multiplication of matrices a and b.
 
-    Note: it is the user's responsibility to make sure that a and b
-        follow the same matrix topology.
+    It is the user's responsibility to make sure that a and b
+    follow the same matrix topology. This function assumes it is safe
+    to use the topoplogy of a.
 
-        This function assumes it is safe to use the topoplogy of a.
+    Args:
+        a:
+           sparse stk.matrix.Matrix.
+        b:
+           sparse stk.matrix.Matrix with a's matrix topology.
+
+    Returns:
+        sparse stk.matrix.Matrix where the entries
+        correspond to torch.mul(a, b).
     """
     assert isinstance(a, Matrix)
     assert isinstance(b, Matrix)
