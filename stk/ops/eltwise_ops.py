@@ -8,14 +8,11 @@ def mul(a, b):
     to use the topoplogy of a.
 
     Args:
-        a:
-           sparse stk.matrix.Matrix.
-        b:
-           sparse stk.matrix.Matrix with a's matrix topology.
+        a: stk.Matrix.
+        b: stk.Matrix with a's matrix topology.
 
     Returns:
-        sparse stk.matrix.Matrix where the entries
-        correspond to torch.mul(a, b).
+        stk.Matrix where the entries correspond to torch.mul(a, b).
     """
     assert isinstance(a, Matrix)
     assert isinstance(b, Matrix)
