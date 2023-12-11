@@ -1,6 +1,14 @@
 from setuptools import setup, find_packages
 import torch
 
+extra_deps = {}
+
+extra_deps['dev'] = [
+    'absl-py',
+]
+
+extra_deps['all'] = set(dep for deps in extra_deps.values() for dep in deps)
+
 setup(
     name="stanford-stk",
     version="0.0.5",
@@ -17,10 +25,7 @@ setup(
     ],
     packages=find_packages(),
     install_requires=[
-        "absl-py",
-        "numpy",
-        "torch",
-        # TODO(tgale): Update this to a stable Triton release once the software pipelining feature is supported.
-        "triton @ git+https://github.com/openai/triton.git@787cdff#egg=triton&subdirectory=python"
+        "triton==2.1.0",
     ],
+    extras_require=extra_deps,
 )

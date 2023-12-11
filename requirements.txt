@@ -1,4 +1,1 @@
-absl-py
-numpy
-torch
-triton @ git+https://github.com/openai/triton.git@787cdff#egg=triton&subdirectory=python
+triton==2.1.0

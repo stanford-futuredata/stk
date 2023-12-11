@@ -36,6 +36,8 @@ Software: CUDA 11.5, CUTLASS 2.5
 
 # :building_construction: Installation
 
+NOTE: This assumes that you have Torch and NumPy installed.
+
 `pip install stanford-stk`
 
 # :writing_hand: Citation
