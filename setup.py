@@ -25,7 +25,7 @@ setup(
     ],
     packages=find_packages(),
     install_requires=[
-        "triton==2.1.0",
+        "triton>=2.1.0",
     ],
     extras_require=extra_deps,
 )
