@@ -129,8 +129,9 @@ class DSD(torch.autograd.Function):
     @staticmethod
     @custom_bwd
     def backward(ctx, dy):
-        lhs = (ctx.shape,) + ctx.saved_tensors[:-1]
-        rhs = ctx.saved_tensors[-1]
+        saved_tensors = ctx.saved_tensors
+        lhs = (ctx.shape,) + saved_tensors[:-1]
+        rhs = saved_tensors[-1]
         trans_a = ctx.transpose_a
         trans_b = _is_transposed(rhs)
 
@@ -201,8 +202,9 @@ class DDS(torch.autograd.Function):
     @staticmethod
     @custom_bwd
     def backward(ctx, dy):
-        lhs = ctx.saved_tensors[0]
-        rhs = (ctx.shape,) + ctx.saved_tensors[1:]
+        saved_tensors = ctx.saved_tensors
+        lhs = saved_tensors[0]
+        rhs = (ctx.shape,) + saved_tensors[1:]
         trans_a = _is_transposed(lhs)
         trans_b = ctx.transpose_b
 
@@ -270,8 +272,9 @@ class SDD(torch.autograd.Function):
     @staticmethod
     @custom_bwd
     def backward(ctx, dy):
-        lhs, rhs = ctx.saved_tensors[:2]
-        dy = (ctx.shape, dy) + ctx.saved_tensors[2:]
+        saved_tensors = ctx.saved_tensors
+        lhs, rhs = saved_tensors[:2]
+        dy = (ctx.shape, dy) + saved_tensors[2:]
         trans_a = _is_transposed(lhs)
         trans_b = _is_transposed(rhs)
 
