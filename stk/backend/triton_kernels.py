@@ -34,8 +34,8 @@ def _sdd_kernel(A, B, C, M, N, K,
     # do matrix multiplication
     acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=ACC_TYPE)
     for k in range(0, tl.cdiv(K, BLOCK_K)):
-        a = tl.load(A)
-        b = tl.load(B)
+        a = tl.load(A, mask=rk[None, :] < K - k * BLOCK_K, other=0.0)
+        b = tl.load(B, mask=rk[:, None] < K - k * BLOCK_K, other=0.0)
         acc += tl.dot(a, b)
         A += BLOCK_K * stride_ak
         B += BLOCK_K * stride_bk
