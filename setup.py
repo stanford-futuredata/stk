@@ -1,4 +1,9 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
+
+install_requires = [
+    'torch>=2.3.0,<2.4',
+    'triton>=2.1.0',
+]
 
 extra_deps = {}
 
@@ -23,8 +28,6 @@ setup(
         "Operating System :: Unix",
     ],
     packages=find_packages(),
-    install_requires=[
-        "triton>=2.1.0",
-    ],
+    install_requires=install_requires,
     extras_require=extra_deps,
 )
