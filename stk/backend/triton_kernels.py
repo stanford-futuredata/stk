@@ -12,7 +12,7 @@ class TritonConfig:
     NUM_STAGES: int = 4
     NUM_WARPS: int = 4
 
-def _validate_matrix_dims(M: int, K: int, N: int):
+def _validate_matmul_dims(M: int, K: int, N: int):
     error_string = "incompatible dimensions: tensor has dim with length: {}, which must be divisible by {}"
     assert M % TritonConfig.BLOCK_M == 0, error_string.format(M, TritonConfig.BLOCK_M)
     assert K % TritonConfig.BLOCK_K == 0, error_string.format(K, TritonConfig.BLOCK_K)
@@ -244,7 +244,7 @@ def dsd(shape,
     M, K = shape
     _, N = rhs.shape
 
-    _validate_matrix_dims(M, K, N)
+    _validate_matmul_dims(M, K, N)
 
     # accumulator types
     ACC_TYPE = tl.float32 if rhs.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
@@ -300,7 +300,7 @@ def dds(lhs,
     M, K = lhs.shape
     _, N = shape
 
-    _validate_matrix_dims(M, K, N)
+    _validate_matmul_dims(M, K, N)
 
     # accumulator types
     ACC_TYPE = tl.float32 if lhs.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
@@ -352,7 +352,7 @@ def sdd(lhs,
     M, K = lhs.shape
     _, N = rhs.shape
 
-    _validate_matrix_dims(M, K, N)
+    _validate_matmul_dims(M, K, N)
 
     # accumulator types
     ACC_TYPE = tl.float32 if out.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
