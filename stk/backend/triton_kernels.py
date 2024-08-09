@@ -12,6 +12,12 @@ class TritonConfig:
     NUM_STAGES: int = 4
     NUM_WARPS: int = 4
 
+def _validate_matrix_dims(M: int, K: int, N: int):
+    error_string = "incompatible dimensions: tensor has dim with length: {}, which must be divisible by {}"
+    assert M % TritonConfig.BLOCK_M == 0, error_string.format(M, TritonConfig.BLOCK_M)
+    assert K % TritonConfig.BLOCK_K == 0, error_string.format(K, TritonConfig.BLOCK_K)
+    assert N % TritonConfig.BLOCK_N == 0, error_string.format(N, TritonConfig.BLOCK_N)
+
 @triton.autotune(
     configs=[
         # basic configs for compute-bound matmuls
@@ -238,7 +244,7 @@ def dsd(shape,
     M, K = shape
     _, N = rhs.shape
 
-    assert K % TritonConfig.BLOCK_K == 0, f"inner dimension {K} must be divisible by BLOCK_K={TritonConfig.BLOCK_K}"
+    _validate_matrix_dims(M, K, N)
 
     # accumulator types
     ACC_TYPE = tl.float32 if rhs.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
@@ -294,7 +300,7 @@ def dds(lhs,
     M, K = lhs.shape
     _, N = shape
 
-    assert K % TritonConfig.BLOCK_K == 0, f"inner dimension {K} must be divisible by BLOCK_K={TritonConfig.BLOCK_K}"
+    _validate_matrix_dims(M, K, N)
 
     # accumulator types
     ACC_TYPE = tl.float32 if lhs.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
@@ -346,7 +352,7 @@ def sdd(lhs,
     M, K = lhs.shape
     _, N = rhs.shape
 
-    assert K % TritonConfig.BLOCK_K == 0, f"inner dimension {K} must be divisible by BLOCK_K={TritonConfig.BLOCK_K}"
+    _validate_matrix_dims(M, K, N)
 
     # accumulator types
     ACC_TYPE = tl.float32 if out.dtype in [torch.float16, torch.bfloat16, torch.float32] else tl.int32
