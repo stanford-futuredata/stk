@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 install_requires = [
-    'torch>=2.3.0,<2.4',
+    'torch>=2.3.0,<2.5',
     'triton>=2.1.0',
 ]
 
