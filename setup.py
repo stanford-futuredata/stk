@@ -15,7 +15,7 @@ extra_deps['all'] = list(set(dep for deps in extra_deps.values() for dep in deps
 
 setup(
     name="stanford-stk",
-    version="0.7.0",
+    version="0.7.1",
     author="Trevor Gale",
     author_email="tgale@stanford.edu",
     description="Sparse Toolkit",
