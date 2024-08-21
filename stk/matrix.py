@@ -175,17 +175,17 @@ class Matrix(torch.nn.Module):
 
         # TODO(tgale): Add heavyweight data validation.
 
-    def to(self, device):
+    def to(self, device, non_blocking: bool = False):
         # TODO(tgale): Handle type conversions here. We
         # need to set the appropriate meta-data type for
         # the given floating-point type.
-        self._data = self._data.to(device)
-        self._row_indices = self._row_indices.to(device)
-        self._column_indices = self._column_indices.to(device)
-        self._offsets = self._offsets.to(device)
-        self._column_indices_t = self._column_indices_t.to(device)
-        self._offsets_t = self._offsets_t.to(device)
-        self._block_offsets_t = self._block_offsets_t.to(device)
+        self._data = self._data.to(device, non_blocking=non_blocking)
+        self._row_indices = self._row_indices.to(device, non_blocking=non_blocking)
+        self._column_indices = self._column_indices.to(device, non_blocking=non_blocking)
+        self._offsets = self._offsets.to(device, non_blocking=non_blocking)
+        self._column_indices_t = self._column_indices_t.to(device, non_blocking=non_blocking)
+        self._offsets_t = self._offsets_t.to(device, non_blocking=non_blocking)
+        self._block_offsets_t = self._block_offsets_t.to(device, non_blocking=non_blocking)
         return self
 
     def cuda(self):
